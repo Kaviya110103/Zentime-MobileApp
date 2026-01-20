@@ -73,7 +73,7 @@ const AttendanceFlow: React.FC = () => {
   async function fetchRecord() {
     try {
       const { data } = await axios.get<Record>(
-        `https://${companyCode}.iieawstesting.in/api/attendance/latest/${employeeId}`
+        `https://${companyCode}.zentime.co.in/api/attendance/latest/${employeeId}`
       );
 
       // Validate if the fetched record is for today and attendance status is 'Present'
@@ -140,7 +140,7 @@ const AttendanceFlow: React.FC = () => {
     setLoading(true);
     try {
       const res = await axios.post(
-        `https://${companyCode}.iieawstesting.in/api/attendance/update-day-status`,
+        `https://${companyCode}.zentime.co.in/api/attendance/update-day-status`,
         null, // No request body needed for params
         {
           params: {

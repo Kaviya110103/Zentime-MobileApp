@@ -41,7 +41,7 @@ const ClockInfoRow: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     const fetchAttendance = async () => {
       try {
         const res = await axios.get<AttendanceRecord | string>(
-          `https://${companyCode}.iieawstesting.in/api/attendance/latest-today-or-yesterday/${employeeId}`
+          `https://${companyCode}.zentime.co.in/api/attendance/latest-today-or-yesterday/${employeeId}`
         );
 
         if (typeof res.data === 'string') {

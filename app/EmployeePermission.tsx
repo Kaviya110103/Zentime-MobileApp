@@ -85,7 +85,7 @@ const companyCode = employee?.companyCode;
 
    try {
   await axios.post(
-    `https://${companyCode}.iieawstesting.in/api/leaves/create?employeeId=${employeeId}`,
+    `https://${companyCode}.zentime.co.in/api/leaves/create?employeeId=${employeeId}`,
     formData
   );
 

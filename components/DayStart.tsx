@@ -39,7 +39,7 @@ export default function StartDayComponent({ employeeId, onDone }: StartDayProps)
     const fetchAttendanceStatus = async () => {
       try {
         const res = await axios.get(
-          `https://${companyCode}.iieawstesting.in/api/attendance/latest-today-or-yesterday/${employeeId}`
+          `https://${companyCode}.zentime.co.in/api/attendance/latest-today-or-yesterday/${employeeId}`
         );
         const data = res.data;
         if (data?.date) {
@@ -69,7 +69,7 @@ export default function StartDayComponent({ employeeId, onDone }: StartDayProps)
     setLoading(true);
     try {
       const res = await axios.put(
-        `https://${companyCode}.iieawstesting.in/api/attendance/start-day`,
+        `https://${companyCode}.zentime.co.in/api/attendance/start-day`,
         null,
         {
           params: {
@@ -107,7 +107,7 @@ export default function StartDayComponent({ employeeId, onDone }: StartDayProps)
     setLoading(true);
     try {
       await axios.post(
-        `https://${companyCode}.iieawstesting.in/api/attendance/submit-timeout-reason`,
+        `https://${companyCode}.zentime.co.in/api/attendance/submit-timeout-reason`,
         null,
         {
           params: {

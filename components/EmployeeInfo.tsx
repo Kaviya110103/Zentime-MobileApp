@@ -76,7 +76,7 @@
 //     const fetchEmployee = async () => {
 //       try {
 //         const res = await axios.get<Employee>(
-//           `https://iie.iieawstesting.in/api/employees/${employeeId}`
+//           `https://${companyCode}.zentime.co.in/api/employees/${employeeId}`
 //         );
 //         setEmployee(res.data);
 //       } catch (err) {
@@ -123,7 +123,7 @@
 //     const checkAttendanceStatus = async () => {
 //       try {
 //         const response = await axios.get(
-//           `https://iie.iieawstesting.in/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
+//           `https://${companyCode}.zentime.co.in/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
 //         );
 //         const status = response.data;
 //         setAttendanceStatus(status);
@@ -148,7 +148,7 @@
 // const handleBellPress = async () => {
 //   try {
 //     const response = await axios.get(
-//       `https://iie.iieawstesting.in/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
+//       `https://${companyCode}.zentime.co.in/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
 //     );
 //     const status = response.data;
 
@@ -288,7 +288,7 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     const fetchEmployee = async () => {
       try {
         const res = await axios.get<Employee>(
-          `https://${companyCode}.iieawstesting.in/api/employees/${employeeId}`
+          `https://${companyCode}.zentime.co.in/api/employees/${employeeId}`
         );
         setEmployees(res.data);
       } catch (err) {
@@ -336,7 +336,7 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     const checkAttendanceStatus = async () => {
       try {
         const response = await axios.get(
-          `https://${companyCode}.iieawstesting.in/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
+          `https://${companyCode}.zentime.co.in/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
         );
         const status = response.data;
         setAttendanceStatus(status);
@@ -359,7 +359,7 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
   const handleBellPress = async () => {
     try {
       const response = await axios.get(
-        `https://${companyCode}.iieawstesting.in/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
+        `https://${companyCode}.zentime.co.in/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
       );
       const status = response.data;
       

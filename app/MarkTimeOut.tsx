@@ -173,7 +173,7 @@ const companyCode = employee?.companyCode;
 
 
 
-      const res = await fetch(`https://${companyCode}.iieawstesting.in/api/attendance/mark-time-out`, {
+      const res = await fetch(`https://${companyCode}.zentime.co.in/api/attendance/mark-time-out`, {
         method: "POST",
         body: formData,
       });

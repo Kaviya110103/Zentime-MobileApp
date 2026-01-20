@@ -35,7 +35,7 @@ export default function DayCloseComponent({
     setLoading(true);
     try {
       const res = await axios.post(
-        `https://${companyCode}.iieawstesting.in/api/attendance/update-day-status`,
+        `https://${companyCode}.zentime.co.in/api/attendance/update-day-status`,
         null,
         {
           params: {

@@ -50,7 +50,7 @@ const LocationTest = ({
       if (!clientId) return;
 
       try {
-        const res = await axios.get(`https://${companyCode}.iieawstesting.in/api/locations`);
+        const res = await axios.get(`https://${companyCode}.zentime.co.in/api/locations`);
         setLocations(res.data);
       } catch (error) {
         console.error(error);

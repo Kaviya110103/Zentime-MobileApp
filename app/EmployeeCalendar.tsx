@@ -49,7 +49,7 @@ export default function EmployeeCalendar() {
 
   const fetchMonthlyAttendance = async (month: number, year: number) => {
     try {
-      const url = `https://${companyCode}.iieawstesting.in/api/attendance/monthly/${employeeId}/${year}/${String(month).padStart(2, '0')}`;
+      const url = `https://${companyCode}.zentime.co.in/api/attendance/monthly/${employeeId}/${year}/${String(month).padStart(2, '0')}`;
       const res = await axios.get(url, {
         timeout: 10000,
         headers: {
@@ -100,7 +100,7 @@ export default function EmployeeCalendar() {
     const formatted = `${yyyy}-${mm}-${dd}`;
 
     try {
-      const res = await axios.get(`https://${companyCode}.iieawstesting.in/api/attendance/${employeeId}/${formatted}`, {
+      const res = await axios.get(`https://${companyCode}.zentime.co.in/api/attendance/${employeeId}/${formatted}`, {
         timeout: 10000,
         headers: {
           'Content-Type': 'application/json',

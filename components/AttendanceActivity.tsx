@@ -44,7 +44,7 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
         promises.push(
           axios
             .get<AttendanceData | null>(
-              `https://${companyCode}.iieawstesting.in/api/attendance/getByDateAndEmployee`,
+              `https://${companyCode}.zentime.co.in/api/attendance/getByDateAndEmployee`,
               { params: { date: formatted, employeeId } }
             )
             .then((res) =>

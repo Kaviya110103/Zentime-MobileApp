@@ -54,7 +54,7 @@ const EmployeeAttendanceReport = () => {
 useEffect(() => {
     const fetchClient = async () => {
       try {
-        const res = await axios.get(`https://iie.iieawstesting.in/api/clients/${clientId}`);
+        const res = await axios.get(`https://${companyCode}.zentime.co.in/api/clients/${clientId}`);
         setClient(res.data);
       } catch (err) {
         console.error(err);
@@ -69,7 +69,7 @@ useEffect(() => {
   useEffect(() => {
     const fetchEmployeeDetails = async () => {
       try {
-        const res = await axios.get(`https://${companyCode}.iieawstesting.in/api/employees/${employeeId}`);
+        const res = await axios.get(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}`);
         setEmployeeDetails({
           firstName: res.data.firstName || '',
           branch: res.data.branch || '',
@@ -94,7 +94,7 @@ useEffect(() => {
       let year = currentDate.getFullYear();
       
       const response = await axios.get(
-        `https://${companyCode}.iieawstesting.in/api/attendance/employee/${employeeId}`,
+        `https://${companyCode}.zentime.co.in/api/attendance/employee/${employeeId}`,
         { params: { month, year } }
       );
 

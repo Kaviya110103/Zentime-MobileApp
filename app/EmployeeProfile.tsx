@@ -73,7 +73,7 @@ const companyCode = employee?.companyCode;  // 👈 get companyCode here
       if (!employeeId) return;
 
       try {
-const response = await fetch(`https://${companyCode}.iieawstesting.in/api/employees/${employeeId}`);
+const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -94,19 +94,19 @@ const response = await fetch(`https://${companyCode}.iieawstesting.in/api/employ
       fetchEmployeeData();
     }
   }, [employeeId, isEditing, setEmployee]);
-  useEffect(() => {
-    const fetchClient = async () => {
-      try {
-const res = await axios.get(`https://iie.iieawstesting.in/api/clients/${employee.clientId}`);
-        setClient(res.data);
-      } catch (err) {
-        console.error(err);
-        Alert.alert('Unable to fetch client details');
-      }
-    };
+//   useEffect(() => {
+//     const fetchClient = async () => {
+//       try {
+// const res = await axios.get(`https://${employee.companyCode}.zentime.co.in/api/clients/${employee.clientId}`);
+//         setClient(res.data);
+//       } catch (err) {
+//         console.error(err);
+//         Alert.alert('Unable to fetch client details');
+//       }
+//     };
 
-    if (employee.clientId) fetchClient();
-  }, [employee.clientId]);
+//     if (employee.clientId) fetchClient();
+//   }, [employee.clientId]);
 
 
    const handleLogout = async () => {
@@ -124,7 +124,7 @@ const res = await axios.get(`https://iie.iieawstesting.in/api/clients/${employee
     if (!employeeId) return;
 
     try {
-const response = await fetch(`https://${companyCode}.iieawstesting.in/api/employees/update/${employeeId}`, {
+const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/update/${employeeId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -176,7 +176,7 @@ setFormData(employee as unknown as Partial<Employee>);
 
 //       // Upload image URL to backend
 //       try {
-// const response = await fetch(`https://${companyCode}.iieawstesting.in/api/employees/${employeeId}/profile-image`, {
+// const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}/profile-image`, {
 
 //           method: 'PUT',
 //           headers: {
@@ -188,7 +188,7 @@ setFormData(employee as unknown as Partial<Employee>);
 //         if (response.ok) {
 //           alert('Image uploaded successfully!');
 //           // Refresh the employee data
-//           const updatedResponse = await fetch(`https://${companyCode}.iieawstesting.in/api/employees/${employeeId}`);
+//           const updatedResponse = await fetch(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}`);
 //           if (updatedResponse.ok) {
 //             const updatedData = await updatedResponse.json();
 //             setEmployee(updatedData);
@@ -223,7 +223,7 @@ const pickImageAndUpload = useCallback(async () => {
 
     try {
       const response = await fetch(
-        `https://${companyCode}.iieawstesting.in/api/employees/${employeeId}/profile-image`,
+        `https://${companyCode}.zentime.co.in/api/employees/${employeeId}/profile-image`,
         {
           method: "PUT",
           headers: {
@@ -238,7 +238,7 @@ const pickImageAndUpload = useCallback(async () => {
 
         // Refresh employee data
         const updatedResponse = await fetch(
-          `https://${companyCode}.iieawstesting.in/api/employees/${employeeId}`
+          `https://${companyCode}.zentime.co.in/api/employees/${employeeId}`
         );
         if (updatedResponse.ok) {
           const updatedData = await updatedResponse.json();
@@ -420,7 +420,7 @@ const pickImageAndUpload = useCallback(async () => {
               </Text>
               <Text style={styles.employeePosition}>{employee.position}</Text>
               {/* <Text style={styles.employeeBranch}>{client.companyName}</Text>
-               <Text style={styles.employeeBranch}>{client.companyCode}</Text> */}
+               <Text style={styles.employeeBranch}>{companyCode}</Text> */}
 
             </View>
           </View>

@@ -1,11 +1,10 @@
 import BottomNavBar from "../components/BottomNavBar";
-// import { EmployeeTestNavProps } from "../types";
 import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from 'expo-router';
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useState, useRef } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -21,7 +20,6 @@ import {
     View
 } from "react-native";
 import { EmployeeContext } from "../context/EmployeeContext";
-import axios from "axios";
 
 const { width, height } = Dimensions.get("window");
 const isDesktop = width >= 768;
@@ -47,38 +45,47 @@ interface Employee {
   weekOff: string | null;
   clientId: number;
   companyCode: string;
-  
 }
 
 const Employee = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Employee>>({});
-//const {  employee, setEmployee } = useContext(EmployeeContext);
-//const clientId = employee?.clientId;
-// const companyCode = employee?.companyCode; 
-  // const navigation = useNavigation<EmployeeTestNavProps>();
+  const { employee, setEmployee, logout } = useContext(EmployeeContext);
+  const companyCode = employee?.companyCode;
+  const employeeId = employee?.id;
   const router = useRouter();
   const [imageUri, setImageUri] = useState<string | null>(null);
-  // const { logout } = useContext(EmployeeContext);
-  const [client, setClient] = useState<any>(null);
-const { employee, setEmployee, logout } = useContext(EmployeeContext);
-const companyCode = employee?.companyCode;  // 👈 get companyCode here
-  const employeeId = employee?.id;
+  
+  // Prevent multiple fetches
+  const hasFetched = useRef(false);
 
-    useEffect(() => {
+  // Fetch employee data on initial load - FIXED: Only fetch if data is missing
+  useEffect(() => {
     const fetchEmployeeData = async () => {
-      if (!employeeId) return;
+      if (!employeeId || hasFetched.current) return;
+      
+      // If employee data already exists in context, use it immediately
+      if (employee && employee.id === employeeId) {
+        setFormData(employee);
+        setLoading(false);
+        hasFetched.current = true;
+        return;
+      }
 
       try {
-const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}`);
+        hasFetched.current = true;
+        setLoading(true);
+        const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
+        // Batch state updates to prevent multiple re-renders
         setEmployee(data);
         setFormData(data);
         setLoading(false);
@@ -89,30 +96,14 @@ const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees
       }
     };
 
-    // Only fetch data if not editing to prevent interference
-    if (!isEditing) {
-      fetchEmployeeData();
-    }
-  }, [employeeId, isEditing, setEmployee]);
-//   useEffect(() => {
-//     const fetchClient = async () => {
-//       try {
-// const res = await axios.get(`https://${employee.companyCode}.zentime.co.in/api/clients/${employee.clientId}`);
-//         setClient(res.data);
-//       } catch (err) {
-//         console.error(err);
-//         Alert.alert('Unable to fetch client details');
-//       }
-//     };
+    fetchEmployeeData();
+  }, [employeeId]); // REMOVED: companyCode, setEmployee from dependencies to prevent re-fetching
 
-//     if (employee.clientId) fetchClient();
-//   }, [employee.clientId]);
-
-
-   const handleLogout = async () => {
+  const handleLogout = async () => {
     await logout();
     router.push("/");
   };
+
   const handleInputChange = useCallback((field: keyof Employee, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -124,7 +115,8 @@ const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees
     if (!employeeId) return;
 
     try {
-const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/update/${employeeId}`, {
+      setSaving(true);
+      const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/update/${employeeId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -134,185 +126,134 @@ const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees
 
       const updatedEmployee = await response.json();
       setEmployee(updatedEmployee);
+      setFormData(updatedEmployee); // Update formData too
       setIsEditing(false);
+      setSaving(false);
       Alert.alert("Success", "Profile updated successfully");
     } catch (err) {
+      setSaving(false);
       Alert.alert("Error", "Failed to update profile");
       console.error("Update error:", err);
     }
-  }, [employeeId, formData, setEmployee]);
+  }, [employeeId, formData, setEmployee, companyCode]);
 
   const toggleEditMode = useCallback(() => {
-    if (!isEditing) {
+    if (!isEditing && employee) {
       // When entering edit mode, ensure formData is current
-setFormData(employee as unknown as Partial<Employee>);
+      setFormData(employee as unknown as Partial<Employee>);
     }
     setIsEditing(!isEditing);
     setMenuVisible(false);
   }, [isEditing, employee]);
 
   const handleCancel = useCallback(() => {
+    // Reset form data to original employee data
+    if (employee) {
+      setFormData(employee as unknown as Partial<Employee>);
+    }
     setIsEditing(false);
-setFormData(employee as unknown as Partial<Employee>);
   }, [employee]);
 
-//   const pickImageAndUpload = useCallback(async () => {
-//     // Request permission
-//     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-//     if (!permissionResult.granted) {
-//       alert('Permission to access gallery is required!');
-//       return;
-//     }
-
-//     // Pick image
-//     const result = await ImagePicker.launchImageLibraryAsync({
-//       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-//       quality: 1,
-//     });
-
-//     if (!result.canceled && result.assets.length > 0) {
-//       const selectedAsset = result.assets[0];
-//       setImageUri(selectedAsset.uri);
-
-//       // Upload image URL to backend
-//       try {
-// const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}/profile-image`, {
-
-//           method: 'PUT',
-//           headers: {
-//             'Content-Type': 'application/x-www-form-urlencoded',
-//           },
-//           body: `imageUrl=${encodeURIComponent(selectedAsset.uri)}`,
-//         });
-
-//         if (response.ok) {
-//           alert('Image uploaded successfully!');
-//           // Refresh the employee data
-//           const updatedResponse = await fetch(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}`);
-//           if (updatedResponse.ok) {
-//             const updatedData = await updatedResponse.json();
-//             setEmployee(updatedData);
-//             setFormData(updatedData);
-//           }
-//         } else {
-//           alert('Failed to upload image.');
-//         }
-//       } catch (err) {
-//         console.error(err);
-//         alert('An error occurred during upload.');
-//       }
-//     }
-//   }, [employeeId, setEmployee]);
-const pickImageAndUpload = useCallback(async () => {
-  // Request permission
-  const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permissionResult.granted) {
-    alert("Permission to access gallery is required!");
-    return;
-  }
-
-  // Pick image
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    quality: 1,
-  });
-
-  if (!result.canceled && result.assets.length > 0) {
-    const selectedAsset = result.assets[0];
-    setImageUri(selectedAsset.uri);
-
-    try {
-      const response = await fetch(
-        `https://${companyCode}.zentime.co.in/api/employees/${employeeId}/profile-image`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: `imageUrl=${encodeURIComponent(selectedAsset.uri)}`,
-        }
-      );
-
-      if (response.ok) {
-        alert("Image uploaded successfully!");
-
-        // Refresh employee data
-        const updatedResponse = await fetch(
-          `https://${companyCode}.zentime.co.in/api/employees/${employeeId}`
-        );
-        if (updatedResponse.ok) {
-          const updatedData = await updatedResponse.json();
-          setEmployee(updatedData);
-          setFormData(updatedData);
-        }
-
-        // ✅ Navigate to EmployeeProfile
-        router.push("/EmployeeProfile");
-      } else {
-        alert("Failed to upload image.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("An error occurred during upload.");
+  const pickImageAndUpload = useCallback(async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      alert("Permission to access gallery is required!");
+      return;
     }
-  }
-}, [employeeId, companyCode, setEmployee, setFormData]);
 
-  const ProfileSection = useMemo(() => 
-    React.memo<{ title: string; children: React.ReactNode }>(({ title, children }) => (
-      <View style={[styles.section, isDesktop && styles.desktopSection]}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        <View style={styles.sectionContent}>{children}</View>
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const selectedAsset = result.assets[0];
+      setImageUri(selectedAsset.uri);
+
+      try {
+        const response = await fetch(
+          `https://${companyCode}.zentime.co.in/api/employees/${employeeId}/profile-image`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: `imageUrl=${encodeURIComponent(selectedAsset.uri)}`,
+          }
+        );
+
+        if (response.ok) {
+          alert("Image uploaded successfully!");
+
+          // Refresh employee data
+          const updatedResponse = await fetch(
+            `https://${companyCode}.zentime.co.in/api/employees/${employeeId}`
+          );
+          if (updatedResponse.ok) {
+            const updatedData = await updatedResponse.json();
+            setEmployee(updatedData);
+            setFormData(updatedData);
+          }
+        } else {
+          alert("Failed to upload image.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("An error occurred during upload.");
+      }
+    }
+  }, [employeeId, companyCode, setEmployee]);
+
+  // FIXED: Moved component definitions outside of useMemo for better performance
+  const ProfileSection = React.memo<{ title: string; children: React.ReactNode }>(({ title, children }) => (
+    <View style={[styles.section, isDesktop && styles.desktopSection]}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionContent}>{children}</View>
+    </View>
+  ));
+
+  const InfoRow = React.memo<{ icon: React.ReactNode; label: string; value: string | number }>(({
+    icon,
+    label,
+    value,
+  }) => (
+    <View style={styles.infoRow}>
+      <View style={styles.infoLabel}>
+        {icon}
+        <Text style={styles.infoLabelText}>{label}</Text>
       </View>
-    )), [isDesktop]
-  );
+      <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
+        {value}
+      </Text>
+    </View>
+  ));
 
-  const InfoRow = useMemo(() => 
-    React.memo<{ icon: React.ReactNode; label: string; value: string | number }>(({
-      icon,
-      label,
-      value,
-    }) => (
-      <View style={styles.infoRow}>
+  const EditableInfoRow = React.memo<{
+    icon: React.ReactNode;
+    label: string;
+    field: keyof Employee;
+    value: string | number | null;
+    keyboardType?: string;
+    onChangeText: (field: keyof Employee, value: string) => void;
+  }>(({ icon, label, field, value, keyboardType = "default", onChangeText }) => {
+    return (
+      <View style={styles.editableInfoRow}>
         <View style={styles.infoLabel}>
           {icon}
           <Text style={styles.infoLabelText}>{label}</Text>
         </View>
-        <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
-          {value}
-        </Text>
+        <TextInput
+          style={styles.editInput}
+          value={value === null ? "" : String(value)}
+          onChangeText={(text) => onChangeText(field, text)}
+          keyboardType={keyboardType as any}
+          placeholder={`Enter ${label.toLowerCase()}`}
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
       </View>
-    )), []
-  );
-
-  const EditableInfoRow = useMemo(() => 
-    React.memo<{
-      icon: React.ReactNode;
-      label: string;
-      field: keyof Employee;
-      value: string | number | null;
-      keyboardType?: string;
-      onChangeText: (field: keyof Employee, value: string) => void;
-    }>(({ icon, label, field, value, keyboardType = "default", onChangeText }) => {
-      return (
-        <View style={styles.editableInfoRow}>
-          <View style={styles.infoLabel}>
-            {icon}
-            <Text style={styles.infoLabelText}>{label}</Text>
-          </View>
-          <TextInput
-            style={styles.editInput}
-            value={value === null ? "" : String(value)}
-            onChangeText={(text) => onChangeText(field, text)}
-            keyboardType={keyboardType as any}
-            placeholder={`Enter ${label.toLowerCase()}`}
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-        </View>
-      );
-    }), []
-  );
+    );
+  });
 
   if (loading) {
     return (
@@ -334,28 +275,22 @@ const pickImageAndUpload = useCallback(async () => {
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={["#ffffff", "#f8fafc"]} style={styles.background}>
         {/* Header */}
-        {/* <View style={[styles.header, isDesktop && styles.desktopHeader]}>
-          <Text style={styles.headerTitle}>Employee rofile</Text>
-        
-        </View> */}
-
-        {/* Menu Modal */}
-            <LinearGradient
-                      colors={['#7726B9', '#5E1D9E']}
-                      style={styles.header}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                    >
-                      <Text style={styles.headerTitle}>Employee Profile</Text>
-                      {/* <Text style={styles.headerSubtitle}>Submit your time-off permission</Text> */}
-                        <TouchableOpacity
+        <LinearGradient
+          colors={['#7726B9', '#5E1D9E']}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Text style={styles.headerTitle}>Employee Profile</Text>
+          <TouchableOpacity
             style={styles.menuButton}
             onPress={() => setMenuVisible(true)}
           >
             <Ionicons name="menu" size={24} color="#ffffff" />
           </TouchableOpacity>
+        </LinearGradient>
 
-                    </LinearGradient>
+        {/* Menu Modal */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -376,7 +311,10 @@ const pickImageAndUpload = useCallback(async () => {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.menuItem} onPress={() => router.replace("/MarkAttendance")}>
+                <TouchableOpacity style={styles.menuItem} onPress={() => {
+                  setMenuVisible(false);
+                  router.push("/MarkAttendance");
+                }}>
                   <Ionicons name="calendar" size={20} color="#334155" />
                   <Text style={styles.menuItemText}>Mark Attendance</Text>
                 </TouchableOpacity>
@@ -398,16 +336,18 @@ const pickImageAndUpload = useCallback(async () => {
           {/* Profile Image Section */}
           <View style={styles.profileImageSection}>
             <View style={styles.profileImageContainer}>
-   <Image
-  source={{ uri: employee.profileImage }}
-  style={{
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    resizeMode: 'cover',
-    backgroundColor: '#f0f0f0'
-  }}
-/>
+              <Image
+                source={{ 
+                  uri: employee.profileImage || 'https://via.placeholder.com/100'
+                }}
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 50,
+                  resizeMode: 'cover',
+                  backgroundColor: '#f0f0f0'
+                }}
+              />
               {isEditing && (
                 <TouchableOpacity style={styles.editImageButton} onPress={pickImageAndUpload}>
                   <Ionicons name="camera" size={20} color="white" />
@@ -419,9 +359,6 @@ const pickImageAndUpload = useCallback(async () => {
                 {employee.firstName} {employee.lastName}
               </Text>
               <Text style={styles.employeePosition}>{employee.position}</Text>
-              {/* <Text style={styles.employeeBranch}>{client.companyName}</Text>
-               <Text style={styles.employeeBranch}>{companyCode}</Text> */}
-
             </View>
           </View>
 
@@ -551,7 +488,7 @@ const pickImageAndUpload = useCallback(async () => {
                   onChangeText={handleInputChange}
                 />
                 <EditableInfoRow
-                  icon={<MaterialIcons name="attach-money" size={18} color="#64748b" />}
+                  icon={<MaterialIcons name="currency-rupee" size={18} color="#64748b" />}
                   label="Salary"
                   field="salary"
                   value={formData.salary || ""}
@@ -584,36 +521,46 @@ const pickImageAndUpload = useCallback(async () => {
                   value={employee.dateOfJoining}
                 />
                 <InfoRow
-                  icon={<MaterialIcons name="attach-money" size={18} color="#64748b" />}
+                  icon={<MaterialIcons name="currency-rupee" size={18} color="#64748b" />}
                   label="Salary"
-                  value={`$${(employee.salary ?? 0).toLocaleString()}`}
+                  value={`₹${(employee.salary ?? 0).toLocaleString('en-IN')}`}
                 />
                 <InfoRow
                   icon={<FontAwesome5 name="calendar-day" size={16} color="#64748b" />}
                   label="Week Off"
                   value={employee.weekOff ?? ""}
                 />
-              </>  ///{client.companyName}
+              </>
             )}
           </ProfileSection>
-
 
           {isEditing && (
             <View style={styles.buttonContainer}>
               <TouchableOpacity 
                 style={[styles.actionButton, styles.cancelButton]} 
                 onPress={handleCancel}
+                disabled={saving}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionButton, styles.saveButton]} onPress={handleSave}>
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.saveButton]} 
+                onPress={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                )}
               </TouchableOpacity>
             </View>
           )}
         </ScrollView>
+        
+        {/* Bottom Nav Bar */}
+        <BottomNavBar activeTab="Profile" />
       </LinearGradient>
-      <BottomNavBar activeTab="Profile" />
     </SafeAreaView>
   );
 };
@@ -621,38 +568,14 @@ const pickImageAndUpload = useCallback(async () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    marginTop:0,
+    marginTop: 0,
+    backgroundColor: '#ffffff',
   },
   background: {
     flex: 1,
   },
-  // header: {
-  //   flexDirection: "row",
-  //   justifyContent: "space-between",
-  //   alignItems: "center",
-  //   paddingTop: 30,
-  //   paddingBottom: 10,
-  //   paddingHorizontal: 6,
-  //   backgroundColor: "#7726B8",
-  //   borderBottomWidth: 1,
-  //   borderBottomColor: "#e2e8f0",
-  // },
-  desktopHeader: {
-    paddingHorizontal: 32,
-  },
-  // headerTitle: {
-  //   fontSize: 20,
-  //   fontWeight: "600",
-  //   color: "#ffffff",
-  // },
-  menuButton: {
-    padding: 8,
-    color: "#ffffff",
-
-  },
-
-    header: {
-        flexDirection: "row",
+  header: {
+    flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
     paddingTop: 40,
@@ -668,66 +591,38 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginBottom: 4,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-start",
-    alignItems: "flex-end",
+  menuButton: {
+    padding: 8,
   },
-  modalContainer: {
-    width: "60%",
-    height: "100%",
-  },
-  desktopModalContainer: {
-    width: "30%",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    padding: 16,
-    marginTop: 56,
-    marginRight: 8,
-    borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  desktopModalContent: {
-    marginTop: 72,
-    marginRight: 16,
-  },
-  menuItem: {
+  buttonContainer: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    gap: 12,
+    marginVertical: 20,
+    paddingHorizontal: 20,
   },
-  menuItemText: {
-    marginLeft: 12,
-    fontSize: 16,
-    color: "#334155",
-  },
-  logoutMenuItem: {
-    borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-    marginTop: 4,
-  },
-  logoutText: {
-    color: "#ef4444",
-  },
-  scrollView: {
+  actionButton: {
     flex: 1,
-    marginBottom:50,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
   },
-  scrollContent: {
-    paddingBottom: 32,
+  saveButton: {
+    backgroundColor: "#3b82f6",
   },
-  desktopScrollContent: {
-    paddingHorizontal: 32,
+  saveButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  cancelButton: {
+    backgroundColor: "#e5e7eb",
+  },
+  cancelButtonText: {
+    color: "#374151",
+    fontSize: 16,
+    fontWeight: "600",
   },
   profileImageSection: {
     alignItems: "center",
@@ -735,13 +630,7 @@ const styles = StyleSheet.create({
   },
   profileImageContainer: {
     position: "relative",
-  },
-  profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 3,
-    borderColor: "#e2e8f0",
+    marginBottom: 16,
   },
   editImageButton: {
     position: "absolute",
@@ -753,148 +642,160 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "white",
   },
   nameContainer: {
     alignItems: "center",
-    marginTop: 16,
   },
   employeeName: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: "#1e293b",
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1f2937",
+    marginBottom: 4,
   },
   employeePosition: {
-    fontSize: 16,
-    color: "#64748b",
-    marginTop: 4,
-  },
-  employeeBranch: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#010101ff",
-    marginTop: 2,
+    fontSize: 14,
+    color: "#6b7280",
   },
   section: {
-    backgroundColor: "white",
-    borderRadius: 8,
-    padding: 16,
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3.84,
     elevation: 2,
   },
   desktopSection: {
-    marginHorizontal: 0,
+    marginHorizontal: 32,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
-    color: "#1e293b",
+    color: "#1f2937",
     marginBottom: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
   },
   sectionContent: {
-    paddingHorizontal: 4,
+    gap: 12,
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  editableInfoRow: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    paddingVertical: 8,
   },
   infoLabel: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    flex: 1,
+    gap: 8,
   },
   infoLabelText: {
-    marginLeft: 8,
     fontSize: 14,
     color: "#64748b",
     fontWeight: "500",
   },
   infoValue: {
     fontSize: 14,
-    fontWeight: "500",
-    color: "#334155",
-    maxWidth: "50%",
+    fontWeight: "600",
+    color: "#1f2937",
+    flex: 1,
+    textAlign: "right",
   },
-  editInput: {
-    fontSize: 14,
-    color: "#334155",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: "#f8fafc",
-    fontWeight: "500",
-  },
-  buttonContainer: {
+  editableInfoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  editInput: {
+    flex: 1,
+    marginLeft: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 6,
+    fontSize: 14,
+    color: "#1f2937",
+    backgroundColor: "#f9fafb",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingVertical: 16,
+    paddingBottom: 80,
+  },
+  desktopScrollContent: {
+    paddingHorizontal: 32,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+  },
+  modalContainer: {
+    marginTop: 60,
+    marginRight: 16,
+  },
+  desktopModalContainer: {
+    marginRight: 32,
+  },
+  modalContent: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    paddingVertical: 8,
+    minWidth: 200,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  desktopModalContent: {
+    minWidth: 250,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingVertical: 12,
     gap: 12,
   },
-  actionButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveButton: {
-    backgroundColor: "#7726B8",
-  },
-  cancelButton: {
-    backgroundColor: "#f1f5f9",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  saveButtonText: {
-    color: "white",
+  menuItemText: {
     fontSize: 16,
-    fontWeight: "600",
+    color: "#334155",
+    fontWeight: "500",
   },
-  cancelButtonText: {
-    color: "#64748b",
-    fontSize: 16,
-    fontWeight: "600",
+  logoutMenuItem: {
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  logoutText: {
+    color: "#ef4444",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#ffffff",
   },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    backgroundColor: "#ffffff",
   },
   errorText: {
-    color: "#ef4444",
     fontSize: 16,
+    color: "#ef4444",
     textAlign: "center",
   },
 });
 
 export default Employee;
-

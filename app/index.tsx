@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useContext } from 'react';
-import { View, Text, StyleSheet, Animated, Image, useColorScheme, BackHandler, Alert } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import { EmployeeContext } from '../context/EmployeeContext'; // adjust path if needed
 
@@ -9,19 +9,6 @@ export default function Index() {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const { employee } = useContext(EmployeeContext);
-  // useEffect(() => {
-  //   const backAction = () => {
-  //     Alert.alert('Hold on!', 'Are you sure you want to exit the app?', [
-  //       { text: 'Cancel', onPress: () => null, style: 'cancel' },
-  //       { text: 'YES', onPress: () => BackHandler.exitApp() },
-  //     ]);
-  //     return true; // Prevent default behavior (exit)
-  //   };
-
-  //   const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-
-  //   return () => backHandler.remove();
-  // }, []);
   useEffect(() => {
     // Animate logo and text
     Animated.timing(imageAnim, {
@@ -38,10 +25,10 @@ export default function Index() {
 
     // Navigate after animation completes
     const timer = setTimeout(() => {
-      if (!employee) {
-        router.push('/Walkthrough'); // user not logged in → show walkthrough
+      if (employee) {
+        router.push('/EmployeeLogin'); // user logged in → go to main screen
       } else {
-        router.push('/EmployeeLogin'); // or your main screen
+        router.push('/Walkthrough'); // user not logged in → show walkthrough
       }
     }, 3000);
 

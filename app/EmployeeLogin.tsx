@@ -1,938 +1,807 @@
-import { EmployeeContext } from "../context/EmployeeContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Link, useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import BottomNavBar from "../components/BottomNavBar";
+// @ts-ignore - expo/vector-icons type declarations issue
+import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from 'expo-router';
+import React, { useCallback, useContext, useEffect, useState, useRef } from "react";
 import {
     ActivityIndicator,
     Alert,
-    BackHandler,
-    Button,
-    ImageBackground,
+    Dimensions,
+    Image,
+    Modal,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
-    Modal,
-    ScrollView,
-    KeyboardAvoidingView,
-    Platform
+    View
 } from "react-native";
-import * as Crypto from "expo-crypto";
-import { navigate } from "expo-router/build/global-state/routing";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EmployeeContext } from "../context/EmployeeContext";
 
-const EmployeeLogin = () => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState("");
-  const [messageColor, setMessageColor] = useState("#4CAF50");
-  const [autoLoggingIn, setAutoLoggingIn] = useState(false);
-  const [hasCredentials, setHasCredentials] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [noCredentialChecked, setNoCredentialChecked] = useState(false);
-  const [showGuestModal, setShowGuestModal] = useState(false);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [newUsername, setNewUsername] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [companyCode, setCompanyCode] = useState("");
-  const [clintId, setClientId] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-const [latitude, setLatitude] = useState("");
-const [longitude, setLongitude] = useState("");
-const [address, setAddress] = useState("");
-const [radius, setRadius] = useState("");
+const { width, height } = Dimensions.get("window");
+const isDesktop = width >= 768;
 
+interface Employee {
+  id: number;
+  firstName: string;
+  lastName: string;
+  mobile: string;
+  gender: string;
+  position: string;
+  branch: string;
+  username: string;
+  password: string;
+  dob: string;
+  email: string;
+  profileImage: string | null;
+  address: string;
+  alternativeMobile: string;
+  dateOfJoining: string;
+  resetToken: string | null;
+  salary: number | null;
+  weekOff: string | null;
+  clientId: number;
+  companyCode: string;
+}
+
+const Employee = () => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Partial<Employee>>({});
+  const { employee, setEmployee, logout } = useContext(EmployeeContext);
+  const companyCode = employee?.companyCode;
+  const employeeId = employee?.id;
   const router = useRouter();
-  const { employee, setEmployee } = useContext(EmployeeContext);
+  const insets = useSafeAreaInsets();
   
-  useFocusEffect(
-    useCallback(() => {
-      const onBackPress = () => {
-        Alert.alert(
-          'Exit App',
-          'Are you sure you want to exit?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Exit', onPress: () => BackHandler.exitApp() },
-          ],
-          { cancelable: true }
-        );
-        return true;
-      };
+  // Prevent multiple fetches
+  const hasFetched = useRef(false);
 
-      const backHandler = BackHandler.addEventListener(
-        'hardwareBackPress',
-        onBackPress
-      );
-
-      return () => backHandler.remove();
-    }, [])
-  );
-  
-  // Check for existing credentials
+  // Fetch employee data on initial load - FIXED: Only fetch if data is missing
   useEffect(() => {
-    const checkCredentials = async () => {
-      const creds = await AsyncStorage.getItem("employeeCredentials");
-      if (creds) {
-        setHasCredentials(true);
-        const { username, password } = JSON.parse(creds);
-        setUsername(username);
-        setPassword(password);
+    const fetchEmployeeData = async () => {
+      if (!employeeId || hasFetched.current) return;
+      
+      // If employee data already exists in context, use it immediately
+      if (employee?.id === employeeId) {
+        setFormData(employee as unknown as Partial<Employee>);
+        setLoading(false);
+        hasFetched.current = true;
+        return;
       }
-      setIsLoading(false);
+
+      try {
+        hasFetched.current = true;
+        setLoading(true);
+        const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        // Batch state updates to prevent multiple re-renders
+        setEmployee(data);
+        setFormData(data);
+        setLoading(false);
+      } catch (err: any) {
+        setError(err.message);
+        setLoading(false);
+        Alert.alert("Error", "Failed to fetch employee data");
+      }
     };
-    checkCredentials();
-  }, []);
-  
-  // Auto-login if credentials exist
-  useEffect(() => {
-    if (hasCredentials && !employee) {
-      const autoLogin = async () => {
-        const creds = await AsyncStorage.getItem("employeeCredentials");
-        if (creds) {
-          const { username, password } = JSON.parse(creds);
-          setAutoLoggingIn(true);
-          await handleLogin(username, password, true);
-          setAutoLoggingIn(false);
-        }
-      };
-      autoLogin();
-    }
-  }, [hasCredentials, employee]);
-// const handleGuestSubmit = async () => {
-//   if (!firstName || !lastName || !newUsername || !newPassword || !email) {
-//     Alert.alert("Error", "Please fill all fields");
-//     return;
-//   }
 
-//   setIsSubmitting(true);
-//   try {
-//     const response = await fetch("https://${companyCode}.zentime.co.in/api/employees", {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({
-//         firstName,
-//         lastName,
-//         username: newUsername,
-//         password: newPassword,  // backend should hash this
-//         email,
-//         guestName: `${firstName} ${lastName}`,  // ✅ Full guest name
-//         guestStartDate: new Date().toISOString(), // ✅ current datetime
-//         companyCode: "ZenTime",   // ✅ fixed
-//         clientId: 1,              // ✅ fixed
-//         mobile: "",               // optional if backend requires
-//         gender: "",               // optional
-//         branch: "",               // optional
-//         dob: null,                // optional
-//         address: ""               // optional
-//       }),
-//     });
-
-//     const result = await response.json();
-
-//     if (response.ok) {
-//       Alert.alert("Success", "Guest account created successfully");
-//       setShowGuestModal(false);
-
-//       // Clear form fields
-//       setFirstName("");
-//       setLastName("");
-//       setNewUsername("");
-//       setNewPassword("");
-//       setEmail("");
-//     } else {
-//       Alert.alert("Error", result.message || "Failed to create account");
-//     }
-//   } catch (err) {
-//     console.error("Guest submit error:", err);
-//     Alert.alert("Error", "Network error. Please try again.");
-//   } finally {
-//     setIsSubmitting(false);
-//   }
-// };
-  
-const handleGuestSubmit = async () => {
-  if (!firstName || !lastName || !newUsername || !newPassword || !email || !latitude || !longitude || !address || !radius) {
-    Alert.alert("Error", "Please fill all fields (including location)");
-    return;
-  }
-
-  setIsSubmitting(true);
-  try {
-    // 1️⃣ Create Guest
-    const response = await fetch("https://${companyCode}.zentime.co.in/api/employees", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        firstName,
-        lastName,
-        username: newUsername,
-        password: newPassword,
-        email,
-        guestName: `${firstName} ${lastName}`,
-        guestStartDate: new Date().toISOString(),
-        companyCode: "iie",
-        clientId: 1,
-        mobile: "",
-        gender: "",
-        branch: "",
-        dob: null,
-        address: ""
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      Alert.alert("Error", result.message || "Failed to create account");
-      return;
-    }
-
-    // 2️⃣ Create Location
-    const locationResponse = await fetch("https://${companyCode}.zentime.co.in/api/locations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        latitude: parseFloat(latitude),
-        longitude: parseFloat(longitude),
-        name: `${firstName} ${lastName}`, // guest’s name as location name
-        address,
-        radius: parseFloat(radius),
-      }),
-    });
-
-    const locResult = await locationResponse.json();
-
-    if (!locationResponse.ok) {
-      Alert.alert("Warning", locResult.message || "Guest created but failed to save location");
-    } else {
-      Alert.alert("Success", "Guest account & location created successfully");
-    }
-
-    // 3️⃣ Clear form
-    setShowGuestModal(false);
-    setFirstName("");
-    setLastName("");
-    setNewUsername("");
-    setNewPassword("");
-    setEmail("");
-    setLatitude("");
-    setLongitude("");
-    setAddress("");
-    setRadius("");
-
-  } catch (err) {
-    console.error("Guest submit error:", err);
-    Alert.alert("Error", "Network error. Please try again.");
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
-
-  const handleLogin = async (
-    inputUsername?: string,
-    inputPassword?: string,
-    silent?: boolean
-  ) => {
-    const uname = inputUsername ?? username;
-    const pwd = inputPassword ?? password;
-
-    if (!uname.trim() || !pwd.trim()) {
-      if (!silent) {
-        Alert.alert("Error", "Please enter both username and password");
-      }
-      return;
-    }
-
-    try {
-      const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: uname, password: pwd }),
-      });
-
-      const data = await response.json();
-      // console.log("Login API response:", data);
-
-      if (response.ok) {
-        if (data && data.id) {
-          setEmployee(data);
-
-          // Optionally encrypt the password before saving
-          const encryptedPwd = await Crypto.digestStringAsync(
-            Crypto.CryptoDigestAlgorithm.SHA256,
-            pwd
-          );
-
-          await AsyncStorage.setItem(
-            "employeeCredentials",
-            JSON.stringify({ username: uname, password: encryptedPwd })
-          );
-
-          setHasCredentials(true);
-          setMessage("Login successful!");
-          setMessageColor("#4CAF50");
-        } else {
-          if (!silent) showInvalidCredentialsAlert();
-        }
-      } else {
-        if (!silent) showInvalidCredentialsAlert();
-      }
-    } catch (err) {
-      console.error("Login error:", err);
-      if (!silent) {
-        Alert.alert("Error", "Network error. Please check your connection.");
-      }
-    }
-  };
-
-  const showInvalidCredentialsAlert = () => {
-    Alert.alert(
-      "Invalid Credentials",
-      "The username or password you entered is incorrect. Please try again.",
-      [
-        {
-          text: "OK",
-          onPress: () => {
-            setPassword(""); // Clear password field
-            setMessage(""); // Clear any previous messages
-          }
-        }
-      ]
-    );
-  };
+    fetchEmployeeData();
+  }, [employeeId]); // REMOVED: companyCode, setEmployee from dependencies to prevent re-fetching
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem("employeeCredentials");
-    setEmployee(null);
-    navigate("/");
-    setHasCredentials(false);
-    setUsername("");
-    setPassword("");
+    await logout();
+    router.push("/");
   };
 
-  const toggleShowPassword = () => {
-    setShowPassword(!showPassword);
-  };
+  const handleInputChange = useCallback((field: keyof Employee, value: string) => {
+    setFormData(prev => {
+      let fieldValue: any = value;
+      if (field === "salary") {
+        fieldValue = value === "" ? null : Number(value);
+      }
+      return {
+        ...prev,
+        [field]: fieldValue
+      };
+    });
+  }, []);
 
-  const toggleShowNewPassword = () => {
-    setShowNewPassword(!showNewPassword);
-  };
+  const handleSave = useCallback(async () => {
+    if (!employeeId || !companyCode) return;
 
-  if (isLoading) {
+    try {
+      setSaving(true);
+      const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/update/${employeeId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const updatedEmployee = await response.json();
+      setEmployee(updatedEmployee);
+      setFormData(updatedEmployee); // Update formData too
+      setIsEditing(false);
+      setSaving(false);
+      Alert.alert("Success", "Profile updated successfully");
+    } catch (err) {
+      setSaving(false);
+      Alert.alert("Error", "Failed to update profile");
+      console.error("Update error:", err);
+    }
+  }, [employeeId, formData, setEmployee, companyCode]);
+
+  const toggleEditMode = useCallback(() => {
+    if (!isEditing && employee) {
+      // When entering edit mode, ensure formData is current
+      setFormData(employee as unknown as Partial<Employee>);
+    }
+    setIsEditing(!isEditing);
+    setMenuVisible(false);
+  }, [isEditing, employee]);
+
+  const handleCancel = useCallback(() => {
+    // Reset form data to original employee data
+    if (employee) {
+      setFormData(employee as unknown as Partial<Employee>);
+    }
+    setIsEditing(false);
+  }, [employee]);
+
+  const pickImageAndUpload = useCallback(async () => {
+    if (!companyCode || !employeeId) return;
+
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      alert("Permission to access gallery is required!");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const selectedAsset = result.assets[0];
+
+      try {
+        const response = await fetch(
+          `https://${companyCode}.zentime.co.in/api/employees/${employeeId}/profile-image`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: `imageUrl=${encodeURIComponent(selectedAsset.uri)}`,
+          }
+        );
+
+        if (response.ok) {
+          alert("Image uploaded successfully!");
+
+          // Refresh employee data
+          const updatedResponse = await fetch(
+            `https://${companyCode}.zentime.co.in/api/employees/${employeeId}`
+          );
+          if (updatedResponse.ok) {
+            const updatedData = await updatedResponse.json();
+            setEmployee(updatedData);
+            setFormData(updatedData);
+          }
+        } else {
+          alert("Failed to upload image.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("An error occurred during upload.");
+      }
+    }
+  }, [employeeId, companyCode, setEmployee]);
+
+  if (loading) {
     return (
-      <View style={[styles.loadingContainer, styles.whiteBackground]}>
-        <ActivityIndicator size="large" color="#085469" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3b82f6" />
       </View>
     );
   }
 
-  if (hasCredentials && employee) {
+  if (error || !employee) {
     return (
-        <ImageBackground
-     source={require("../assets/images/bg1.png")}
-      style={styles.background}
-      resizeMode="cover">
-      <View style={[styles.container, styles.whiteBackground]}>
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={styles.welcomeBox}>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.welcomeName}>{employee.name || employee.username}!</Text>
-            
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={() => router.push("/MarkAttendance")}
-            >
-              <Text style={styles.buttonText}>Go to Dashboard</Text>
-            </TouchableOpacity>
-              
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={handleLogout}
-            >
-              <Text style={styles.secondaryButtonText}>Not you? Logout</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error || "No employee data found"}</Text>
       </View>
-      </ImageBackground>
     );
   }
 
   return (
-    <ImageBackground
-     source={require("../assets/images/bg1.png")}
-      style={styles.background}
-      resizeMode="cover">
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.heading}>Employee Login</Text>
-
-        <View style={styles.loginBox}>
-          <Text style={styles.label}>Username*</Text>
-          <TextInput
-            style={styles.input}
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            placeholder="Enter your username"
-            placeholderTextColor="#999"
-          />
-
-          <Text style={styles.label}>Password*</Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={styles.passwordInput}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              placeholder="Enter your password"
-              placeholderTextColor="#999"
-            />
-            <TouchableOpacity
-              style={styles.showPasswordButton}
-              onPress={toggleShowPassword}
-            >
-              <Text style={styles.showPasswordText}>
-                {showPassword ? "Hide" : "Show"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-           <Text style={styles.label}>CompanyCode*</Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={styles.passwordInput}
-              value={companyCode}
-              onChangeText={setCompanyCode}
-              placeholder="Enter your companycode"
-              placeholderTextColor="#999"
-            />
-         
-          </View>
-
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <LinearGradient colors={["#ffffff", "#f8fafc"]} style={styles.background}>
+        {/* Header */}
+        <LinearGradient
+          colors={['#7726B9', '#5E1D9E']}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Text style={styles.headerTitle}>Employee Profile</Text>
           <TouchableOpacity
-            style={styles.loginButton}
-            onPress={() => handleLogin()}
-            disabled={autoLoggingIn}
+            style={styles.menuButton}
+            onPress={() => setMenuVisible(true)}
           >
-            {autoLoggingIn ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text style={styles.buttonText}>LOGIN</Text>
-            )}
+            <Ionicons name="menu" size={24} color="#ffffff" />
           </TouchableOpacity>
-          
-          <View style={styles.checkboxContainer}>
-            <TouchableOpacity
-              style={styles.checkbox}
-              onPress={() => {
-                setNoCredentialChecked(true);
-                setShowContactModal(true);
-              }}
-            >
-              <Text style={styles.checkboxIcon}>
-                {noCredentialChecked ? "✓" : ""}
-              </Text>
-              <Text style={styles.checkboxLabel}>I don't have login credentials</Text>
-            </TouchableOpacity>
-          </View>
+        </LinearGradient>
 
-          {message ? (
-            <Text style={[styles.message, { color: messageColor }]}>
-              {message}
-            </Text>
-          ) : null}
-        </View>
-        
-        <View style={styles.bottomButtonsContainer}>
+        {/* Menu Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={menuVisible}
+          onRequestClose={() => setMenuVisible(false)}
+        >
           <TouchableOpacity
-            style={styles.guestButton}
-            onPress={() => setShowGuestModal(true)}
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setMenuVisible(false)}
           >
-            <Text style={styles.guestButtonText}>Guest Mode</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.clientRegButton}
-            onPress={() => router.push("/ClientReg")}
-          >
-            <Text style={styles.clientRegButtonText}>Client Registration</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Contact Support Modal */}
-      <Modal
-        visible={showContactModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowContactModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Need Access?</Text>
-            <Text style={styles.modalText}>
-              If you don't have login credentials, please contact:
-            </Text>
-            <Text style={styles.modalEmail}>wingrootechnologies@gmail.com</Text>
-
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => setShowContactModal(false)}
-            >
-              <Text style={styles.buttonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Guest Account Modal */}
-      <Modal
-        visible={showGuestModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => !isSubmitting && setShowGuestModal(false)}
-      >
-        <View style={styles.modalOverlays}>
-          <ScrollView contentContainerStyle={styles.modalScrollContainer}>
-            <View style={styles.guestModalContent}>
-              <Text style={styles.modalTitle}>Create Guest Account</Text>
-
-              <Text style={styles.label}>First Name*</Text>
-              <TextInput
-                style={styles.input}
-                value={firstName}
-                onChangeText={setFirstName}
-                placeholder="Enter first name"
-                placeholderTextColor="#999"
-              />
-
-              <Text style={styles.label}>Last Name*</Text>
-              <TextInput
-                style={styles.input}
-                value={lastName}
-                onChangeText={setLastName}
-                placeholder="Enter last name"
-                placeholderTextColor="#999"
-              />
-<Text style={styles.label}>Company Code</Text>
-<TextInput
-  style={[styles.input, { backgroundColor: "#f0f0f0" }]}
-  value="iie"
-  editable={false}
-/>
-
-<Text style={styles.label}>Client ID</Text>
-<TextInput
-  style={[styles.input, { backgroundColor: "#f0f0f0" }]}
-  value="1"
-  editable={false}
-/>
-
-              <Text style={styles.label}>Username*</Text>
-              <TextInput
-                style={styles.input}
-                value={newUsername}
-                onChangeText={setNewUsername}
-                autoCapitalize="none"
-                placeholder="Create username"
-                placeholderTextColor="#999"
-              />
-
-              <Text style={styles.label}>Password*</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={styles.passwordInput}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  secureTextEntry={!showNewPassword}
-                  placeholder="Create password"
-                  placeholderTextColor="#999"
-                />
-                <TouchableOpacity
-                  style={styles.showPasswordButton}
-                  onPress={toggleShowNewPassword}
-                >
-                  <Text style={styles.showPasswordText}>
-                    {showNewPassword ? "Hide" : "Show"}
+            <View style={[styles.modalContainer, isDesktop && styles.desktopModalContainer]}>
+              <View style={[styles.modalContent, isDesktop && styles.desktopModalContent]}>
+                <TouchableOpacity style={styles.menuItem} onPress={toggleEditMode}>
+                  <Ionicons name={isEditing ? "close" : "create"} size={20} color="#334155" />
+                  <Text style={styles.menuItemText}>
+                    {isEditing ? "Cancel Editing" : "Edit Profile"}
                   </Text>
                 </TouchableOpacity>
-              </View>
 
-              <Text style={styles.label}>Email*</Text>
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                placeholder="Enter email"
-                placeholderTextColor="#999"
-              />
-              <TextInput
-  style={styles.input}
-  value={latitude}
-  onChangeText={setLatitude}
-  keyboardType="numeric"
-  placeholder="Enter latitude"
-  placeholderTextColor="#999"
-/>
+                <TouchableOpacity style={styles.menuItem} onPress={() => {
+                  setMenuVisible(false);
+                  router.push("/MarkAttendance");
+                }}>
+                  <Ionicons name="calendar" size={20} color="#334155" />
+                  <Text style={styles.menuItemText}>Mark Attendance</Text>
+                </TouchableOpacity>
 
-<Text style={styles.label}>Longitude*</Text>
-<TextInput
-  style={styles.input}
-  value={longitude}
-  onChangeText={setLongitude}
-  keyboardType="numeric"
-  placeholder="Enter longitude"
-  placeholderTextColor="#999"
-/>
-
-<Text style={styles.label}>Address*</Text>
-<TextInput
-  style={styles.input}
-  value={address}
-  onChangeText={setAddress}
-  placeholder="Enter address"
-  placeholderTextColor="#999"
-/>
-
-<Text style={styles.label}>Radius (meters)*</Text>
-<TextInput
-  style={styles.input}
-  value={radius}
-  onChangeText={setRadius}
-  keyboardType="numeric"
-  placeholder="Enter radius"
-  placeholderTextColor="#999"
-
-/>
-              <View style={styles.modalButtonContainer}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.primaryButton]}
-                  onPress={handleGuestSubmit}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text style={styles.CreateAccountbuttonText}>Create Account</Text>
-                  )}
+                <TouchableOpacity style={[styles.menuItem, styles.logoutMenuItem]} onPress={handleLogout}>
+                  <Ionicons name="log-out" size={20} color="#ef4444" />
+                  <Text style={[styles.menuItemText, styles.logoutText]}>Logout</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </ScrollView>
-        </View>
-      </Modal>
-    </ImageBackground>
+          </TouchableOpacity>
+        </Modal>
+
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Profile Image Section */}
+          <View style={styles.profileImageSection}>
+            <View style={styles.profileImageContainer}>
+              <Image
+                source={{ 
+                  uri: employee.profileImage || 'https://via.placeholder.com/100'
+                }}
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 50,
+                  resizeMode: 'cover',
+                  backgroundColor: '#f0f0f0'
+                }}
+              />
+              {isEditing && (
+                <TouchableOpacity style={styles.editImageButton} onPress={pickImageAndUpload}>
+                  <Ionicons name="camera" size={20} color="white" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.nameContainer}>
+              <Text style={styles.employeeName}>
+                {employee.firstName} {employee.lastName}
+              </Text>
+              <Text style={styles.employeePosition}>{employee.position}</Text>
+            </View>
+          </View>
+
+          {/* Personal Information */}
+          <ProfileSection title="Personal Information">
+            {isEditing ? (
+              <>
+                <EditableInfoRow
+                  icon={<Ionicons name="person" size={18} color="#64748b" />}
+                  label="First Name"
+                  field="firstName"
+                  value={formData.firstName || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="person" size={18} color="#64748b" />}
+                  label="Last Name"
+                  field="lastName"
+                  value={formData.lastName || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="mail" size={18} color="#64748b" />}
+                  label="Email"
+                  field="email"
+                  value={formData.email || ""}
+                  keyboardType="email-address"
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="call" size={18} color="#64748b" />}
+                  label="Mobile"
+                  field="mobile"
+                  value={formData.mobile || ""}
+                  keyboardType="phone-pad"
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="call" size={18} color="#64748b" />}
+                  label="Alt Mobile"
+                  field="alternativeMobile"
+                  value={formData.alternativeMobile || ""}
+                  keyboardType="phone-pad"
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="calendar" size={18} color="#64748b" />}
+                  label="Date of Birth"
+                  field="dob"
+                  value={formData.dob || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="male-female" size={18} color="#64748b" />}
+                  label="Gender"
+                  field="gender"
+                  value={formData.gender || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="home" size={18} color="#64748b" />}
+                  label="Address"
+                  field="address"
+                  value={formData.address || ""}
+                  onChangeText={handleInputChange}
+                />
+              </>
+            ) : (
+              <>
+                <InfoRow
+                  icon={<Ionicons name="mail" size={18} color="#64748b" />}
+                  label="Email"
+                  value={employee.email}
+                />
+                <InfoRow
+                  icon={<Ionicons name="call" size={18} color="#64748b" />}
+                  label="Mobile"
+                  value={employee.mobile}
+                />
+                <InfoRow
+                  icon={<Ionicons name="call" size={18} color="#64748b" />}
+                  label="Alt Mobile"
+                  value={employee.alternativeMobile}
+                />
+                <InfoRow
+                  icon={<Ionicons name="calendar" size={18} color="#64748b" />}
+                  label="Date of Birth"
+                  value={employee.dob}
+                />
+                <InfoRow
+                  icon={<Ionicons name="male-female" size={18} color="#64748b" />}
+                  label="Gender"
+                  value={employee.gender}
+                />
+                <InfoRow
+                  icon={<Ionicons name="home" size={18} color="#64748b" />}
+                  label="Address"
+                  value={employee.address}
+                />
+              </>
+            )}
+          </ProfileSection>
+
+          {/* Employment Information */}
+          <ProfileSection title="Employment Information">
+            {isEditing ? (
+              <>
+                <EditableInfoRow
+                  icon={<FontAwesome5 name="building" size={16} color="#64748b" />}
+                  label="Branch"
+                  field="branch"
+                  value={formData.branch || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<MaterialIcons name="work" size={18} color="#64748b" />}
+                  label="Position"
+                  field="position"
+                  value={formData.position || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="calendar" size={18} color="#64748b" />}
+                  label="Joining Date"
+                  field="dateOfJoining"
+                  value={formData.dateOfJoining || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<MaterialIcons name="currency-rupee" size={18} color="#64748b" />}
+                  label="Salary"
+                  field="salary"
+                  value={formData.salary || ""}
+                  keyboardType="numeric"
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<FontAwesome5 name="calendar-day" size={16} color="#64748b" />}
+                  label="Week Off"
+                  field="weekOff"
+                  value={formData.weekOff || ""}
+                  onChangeText={handleInputChange}
+                />
+              </>
+            ) : (
+              <>
+                <InfoRow
+                  icon={<FontAwesome5 name="building" size={16} color="#64748b" />}
+                  label="Branch"
+                  value={employee.branch || ""}
+                />
+                <InfoRow
+                  icon={<MaterialIcons name="work" size={18} color="#64748b" />}
+                  label="Position"
+                  value={employee.position || ""}
+                />
+                <InfoRow
+                  icon={<Ionicons name="calendar" size={18} color="#64748b" />}
+                  label="Joining Date"
+                  value={employee.dateOfJoining}
+                />
+                <InfoRow
+                  icon={<MaterialIcons name="currency-rupee" size={18} color="#64748b" />}
+                  label="Salary"
+                  value={`₹${(employee.salary ?? 0).toLocaleString('en-IN')}`}
+                />
+                <InfoRow
+                  icon={<FontAwesome5 name="calendar-day" size={16} color="#64748b" />}
+                  label="Week Off"
+                  value={employee.weekOff ?? ""}
+                />
+              </>
+            )}
+          </ProfileSection>
+
+          {isEditing && (
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.cancelButton]} 
+                onPress={handleCancel}
+                disabled={saving}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.saveButton]} 
+                onPress={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+        
+        {/* Bottom Nav Bar */}
+        <BottomNavBar activeTab="Profile" />
+      </LinearGradient>
+    </View>
   );
 };
 
+// Component definitions moved outside of Employee component
+const ProfileSection = React.memo<{ title: string; children: React.ReactNode }>(({ title, children }) => (
+  <View style={[styles.section, Dimensions.get('window').width >= 768 && styles.desktopSection]}>
+    <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={styles.sectionContent}>{children}</View>
+  </View>
+));
+
+const InfoRow = React.memo<{ icon: React.ReactNode; label: string; value: string | number }>(({
+  icon,
+  label,
+  value,
+}) => (
+  <View style={styles.infoRow}>
+    <View style={styles.infoLabel}>
+      {icon}
+      <Text style={styles.infoLabelText}>{label}</Text>
+    </View>
+    <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
+      {value}
+    </Text>
+  </View>
+));
+
+const EditableInfoRow = React.memo<{
+  icon: React.ReactNode;
+  label: string;
+  field: keyof Employee;
+  value: string | number | null;
+  keyboardType?: string;
+  onChangeText: (field: keyof Employee, value: string) => void;
+}>(({ icon, label, field, value, keyboardType = "default", onChangeText }) => {
+  return (
+    <View style={styles.editableInfoRow}>
+      <View style={styles.infoLabel}>
+        {icon}
+        <Text style={styles.infoLabelText}>{label}</Text>
+      </View>
+      <TextInput
+        style={styles.editInput}
+        value={value === null ? "" : String(value)}
+        onChangeText={(text) => onChangeText(field, text)}
+        keyboardType={keyboardType as any}
+        placeholder={`Enter ${label.toLowerCase()}`}
+        autoCorrect={false}
+        autoCapitalize="none"
+      />
+    </View>
+  );
+});
+
 const styles = StyleSheet.create({
-   background: {
-    flex: 1,
-    width: "100%",
-    height: "100%",
-  },
-  whiteBackground: {
-    backgroundColor: 'transparent',
-  },
   container: {
     flex: 1,
+    marginTop: 0,
+    backgroundColor: '#ffffff',
   },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  loadingContainer: {
+  background: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: '#fff',
   },
-  heading: {
-    fontSize: 28,
-    color: "#ffffff",
-    fontWeight: "bold",
-    marginBottom: 30,
-    textAlign: "center",
-  },
-  loginBox: {
-    backgroundColor: "#ffffff",
-    padding: 25,
-    borderRadius: 25,
-    width: "100%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    marginBottom: 20,
-  },
-  welcomeBox: {
-    backgroundColor: "#f9f9f9",
-    padding: 30,
-    width: "100%",
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  welcomeText: {
-    fontSize: 22,
-    color: "#333",
-    marginBottom: 10,
-    fontWeight: "600",
-  },
-  welcomeName: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#8f40d1ff",
-    marginBottom: 30,
-    textAlign: "center",
-  },
-  primaryButton: {
-    backgroundColor: "#351153",
-    padding: 16,
-    borderRadius: 8,
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  buttonText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  CreateAccountbuttonText: {
-    color: "white",
-  },
-  loginButton: {
-    backgroundColor: "#7c25c4ff",
-    padding: 14,
-    borderRadius: 15,
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    color: "white",
-  },
-  secondaryButton: {
-    padding: 14,
-    borderRadius: 15,
-    width: "100%",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#7c25c4ff",
-    marginBottom: 15,
-  },
-  bottomButtonsContainer: {
+  header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: "100%",
+    alignItems: "flex-end",
+    paddingTop: 40,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
-  guestButton: {
-    padding: 14,
-    borderRadius: 15,
-    alignItems: "center",
-    backgroundColor: "#351153",
+  headerTitle: {
+    paddingTop: 13,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  menuButton: {
+    padding: 8,
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginVertical: 20,
+    paddingHorizontal: 20,
+  },
+  actionButton: {
     flex: 1,
-    marginRight: 10,
-  },
-  guestButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  clientRegButton: {
-    padding: 14,
-    borderRadius: 15,
-    alignItems: "center",
-    backgroundColor: "#351153",
-    flex: 1,
-    marginLeft: 10,
-  },
-  clientRegButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  secondaryButtonText: {
-    color: "#7c25c4ff",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  label: {
-    color: "#555",
-    fontSize: 14,
-    marginBottom: 8,
-    fontWeight: "500",
-  },
-  input: {
-    width: "100%",
-    padding: 14,
-    borderColor: "#ddd",
-    borderWidth: 1,
+    paddingVertical: 12,
     borderRadius: 8,
-    fontSize: 16,
-    marginBottom: 20,
-    backgroundColor: "#fff",
-    color: '#333',
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
   },
-  passwordContainer: {
+  saveButton: {
+    backgroundColor: "#3b82f6",
+  },
+  saveButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  cancelButton: {
+    backgroundColor: "#e5e7eb",
+  },
+  cancelButtonText: {
+    color: "#374151",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  profileImageSection: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  profileImageContainer: {
+    position: "relative",
+    marginBottom: 16,
+  },
+  editImageButton: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#3b82f6",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  nameContainer: {
+    alignItems: "center",
+  },
+  employeeName: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1f2937",
+    marginBottom: 4,
+  },
+  employeePosition: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  section: {
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3.84,
+    elevation: 2,
+  },
+  desktopSection: {
+    marginHorizontal: 32,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 12,
+  },
+  sectionContent: {
+    gap: 12,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  infoLabel: {
     flexDirection: "row",
     alignItems: "center",
-    borderColor: "#ddd",
-    borderWidth: 1,
-    borderRadius: 8,
-    marginBottom: 20,
-    backgroundColor: "#fff",
-  },
-  passwordInput: {
     flex: 1,
-    padding: 14,
-    fontSize: 16,
-    color: '#333',
+    gap: 8,
   },
-  showPasswordButton: {
-    padding: 14,
-  },
-  showPasswordText: {
+  infoLabelText: {
     fontSize: 14,
-    color: "#2a52be",
-    fontWeight: '500',
+    color: "#64748b",
+    fontWeight: "500",
   },
-  message: {
-    textAlign: "center",
-    marginBottom: 15,
+  infoValue: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "600",
+    color: "#1f2937",
+    flex: 1,
+    textAlign: "right",
   },
-  checkboxContainer: {
-    marginTop: 10,
-    alignItems: "flex-start",
-    width: "100%",
-  },
-  checkbox: {
+  editableInfoRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 5,
+    paddingVertical: 8,
   },
-  checkboxIcon: {
-    width: 20,
-    height: 20,
+  editInput: {
+    flex: 1,
+    marginLeft: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "#2a52be",
-    borderRadius: 4,
-    marginRight: 8,
-    textAlign: 'center',
-    color: '#2a52be',
-  },
-  checkboxLabel: {
+    borderColor: "#e5e7eb",
+    borderRadius: 6,
     fontSize: 14,
-    color: "#555",
+    color: "#1f2937",
+    backgroundColor: "#f9fafb",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingVertical: 16,
+    paddingBottom: 80,
+  },
+  desktopScrollContent: {
+    paddingHorizontal: 32,
   },
   modalOverlay: {
     flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+  },
+  modalContainer: {
+    marginTop: 60,
+    marginRight: 16,
+  },
+  desktopModalContainer: {
+    marginRight: 32,
+  },
+  modalContent: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    paddingVertical: 8,
+    minWidth: 200,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  desktopModalContent: {
+    minWidth: 250,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 16,
+    color: "#334155",
+    fontWeight: "500",
+  },
+  logoutMenuItem: {
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  logoutText: {
+    color: "#ef4444",
+  },
+  loadingContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    padding: 20,
+    backgroundColor: "#ffffff",
   },
-  modalOverlays: {
+  errorContainer: {
     flex: 1,
-    padding: 20,
-  },
-  modalBox: {
-    backgroundColor: "#fff",
-    padding: 25,
-    borderRadius: 12,
+    justifyContent: "center",
     alignItems: "center",
-    width: "100%",
-    maxWidth: 350,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    backgroundColor: "#ffffff",
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 15,
-    color: '#333',
-    textAlign: 'center',
-  },
-  modalText: {
-    fontSize: 15,
-    textAlign: "center",
-    marginBottom: 15,
-    color: '#555',
-    lineHeight: 22,
-  },
-  modalEmail: {
+  errorText: {
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#2a52be",
+    color: "#ef4444",
     textAlign: "center",
-    marginBottom: 20,
-  },
-  modalScrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    width: '100%',
-  },
-  guestModalContent: {
-    backgroundColor: "white",
-    padding: 25,
-    borderRadius: 12,
-    width: "100%",
-    maxWidth: 400,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  modalButtonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 20,
-  },
-  modalButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 25,
-    borderRadius: 8,
-    minWidth: 120,
-    alignItems: "center",
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: "#f0f0f0",
-    marginRight: 10,
-  },
-  cancelButtonText: {
-    color: "#555",
-    fontWeight: "bold",
   },
 });
 
-export default EmployeeLogin;
+export default Employee;

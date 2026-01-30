@@ -26,134 +26,302 @@ type EmployeeInfoProps = {
 
 const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [attendances, setAttendances] = useState<AttendanceData[]>([]);
- const {  employee, setEmployee } = useContext(EmployeeContext);
-//  const { employee, setEmployee, logout } = useContext(EmployeeContext);
- const companyCode = employee?.companyCode;
+  const { employee } = useContext(EmployeeContext);
+  const companyCode = employee?.companyCode;
+
   useEffect(() => {
     const fetchAttendance = async () => {
-      setLoading(true);
-      const today = new Date();
-      const promises: Promise<AttendanceData | null>[] = [];
-
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        const formatted = d.toLocaleDateString('en-GB'); // dd/mm/yyyy
-
-        promises.push(
-          axios
-            .get<AttendanceData | null>(
-              `https://${companyCode}.zentime.co.in/api/attendance/getByDateAndEmployee`,
-              { params: { date: formatted, employeeId } }
-            )
-            .then((res) =>
-              res.data ? { ...res.data, date: formatted } : null
-            )
-            .catch(() => null)
-        );
+      if (!companyCode) {
+        setError('Company code not found');
+        setLoading(false);
+        return;
       }
 
-      const results = await Promise.all(promises);
+      try {
+        setLoading(true);
+        setError(null);
+        const today = new Date();
+        const promises: Promise<AttendanceData | null>[] = [];
 
-      // Deduplicate by date
-      const map = new Map<string, AttendanceData>();
-      results.forEach((row) => {
-        if (row) map.set(row.date, row);
-      });
+        // Fetch last 7 days
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(today);
+          d.setDate(today.getDate() - i);
+          const formatted = d.toLocaleDateString('en-GB'); // dd/mm/yyyy
 
-      setAttendances([...map.values()]);
-      setLoading(false);
+          promises.push(
+            axios
+              .get<AttendanceData | null>(
+                `https://${companyCode}.zentime.co.in/api/attendance/getByDateAndEmployee`,
+                { params: { date: formatted, employeeId } }
+              )
+              .then((res) =>
+                res.data ? { ...res.data, date: formatted } : null
+              )
+              .catch((err) => {
+                console.log(`Error fetching ${formatted}:`, err.message);
+                return null;
+              })
+          );
+        }
+
+        const results = await Promise.all(promises);
+        
+        // Filter out null results and deduplicate
+        const validResults = results.filter((result): result is AttendanceData => 
+          result?.date !== undefined
+        );
+        
+        // Sort by date (newest first)
+        validResults.sort((a, b) => {
+          const dateA = new Date(a.date.split('/').reverse().join('-'));
+          const dateB = new Date(b.date.split('/').reverse().join('-'));
+          return dateB.getTime() - dateA.getTime();
+        });
+
+        console.log('Fetched attendances:', validResults); // Debug log
+        
+        setAttendances(validResults);
+      } catch (err: any) {
+        console.error('Error fetching attendance:', err);
+        setError('Failed to load attendance data');
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchAttendance();
-  }, [employeeId]);
+  }, [employeeId, companyCode]);
 
-  const times: {
-    label: string;
-    key: 'timeIn' | 'timeOut';
-    icon: FeatherIconName;
-  }[] = [
-    { label: 'Clock-In', key: 'timeIn', icon: 'log-in' },
-    { label: 'Clock-Out', key: 'timeOut', icon: 'log-out' },
-  ];
-
-  const getDayName = (dateStr: string) => {
-    const [day, month, year] = dateStr.split('/');
-    const date = new Date(`${year}-${month}-${day}`);
-    return date.toLocaleDateString('en-US', { weekday: 'long' });
+  // getDayName is defined here but not used - keeping for potential future use
+  const getShortDayName = (dateStr: string) => {
+    try {
+      const [day, month, year] = dateStr.split('/');
+      const date = new Date(`${year}-${month}-${day}`);
+      return date.toLocaleDateString('en-US', { weekday: 'short' });
+    } catch (err) {
+      console.error('Error parsing date in getShortDayName:', err);
+      return '???';
+    }
   };
 
-  if (loading)
-    return <ActivityIndicator size="large" color="blue" style={styles.center} />;
+  const formatTime = (timeValue: string | null) => {
+    if (!timeValue) return '--:--';
+    try {
+      return new Date(timeValue).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch (err) {
+      console.error('Error formatting time:', err);
+      return '??:??';
+    }
+  };
 
-  if (attendances.length === 0)
+  const getAttendanceStatus = (attendance: AttendanceData) => {
+    if (attendance.attendanceStatus === 'Absent') return 'absent';
+    if (attendance.timeIn) return 'present';
+    return 'no-data';
+  };
+
+  // Debug: Log current state
+  console.log('Component state:', { loading, error, attendancesCount: attendances.length });
+
+  if (loading) {
     return (
-      <Text style={[styles.center, styles.noData]}>
-        No attendance data found for last 7 days.
-      </Text>
+      <View style={styles.centeredContainer}>
+        <ActivityIndicator size="large" color="#007bff" />
+        <Text style={styles.loadingText}>Loading attendance...</Text>
+      </View>
     );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centeredContainer}>
+        <Feather name="alert-circle" size={48} color="#dc3545" />
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
+
+  // Generate last 7 days even if no data
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    return d.toLocaleDateString('en-GB');
+  }).reverse();
+
+  // Create a map of attendance data by date for easy lookup
+  const attendanceMap = new Map<string, AttendanceData>();
+  attendances.forEach(att => attendanceMap.set(att.date, att));
 
   return (
-    <View style={[styles.clockSection, { height: 300 }]}>
-      <ScrollView
-        style={styles.scrollWrapper}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={true}
-      >
-        <Text style={styles.heading}>Attendance Activity</Text>
+    <View style={styles.container}>
+      <Text style={styles.heading}>Attendance Activity</Text>
+      
+      {attendances.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Feather name="calendar" size={48} color="#ccc" />
+          <Text style={styles.emptyText}>No attendance records found</Text>
+          <Text style={styles.emptySubtext}>Showing last 7 days</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+        >
+          <View style={styles.headerRow}>
+            <View style={[styles.headerCell, styles.dayCell]}>
+              <Text style={styles.headerText}>Day</Text>
+            </View>
+            <View style={[styles.headerCell, styles.statusCell]}>
+              <Text style={styles.headerText}>Status</Text>
+            </View>
+            <View style={[styles.headerCell, styles.timeCell]}>
+              <Text style={styles.headerText}>In</Text>
+            </View>
+            <View style={[styles.headerCell, styles.timeCell]}>
+              <Text style={styles.headerText}>Out</Text>
+            </View>
+            <View style={[styles.headerCell, styles.totalCell]}>
+              <Text style={styles.headerText}>Total</Text>
+            </View>
+          </View>
 
-        {attendances.map((attendance, index) => {
-          const isAbsent = attendance.attendanceStatus === 'Absent';
+          {last7Days.map((date, index) => {
+            const attendance = attendanceMap.get(date) || {
+              date,
+              timeIn: null,
+              timeOut: null,
+              attendanceStatus: undefined
+            };
+            
+            const status = getAttendanceStatus(attendance);
+            const dayName = getShortDayName(date);
+            const formattedDate = date.split('/')[0];
 
-          if (isAbsent) {
+            const getStatusConfig = (status: string) => {
+              switch (status) {
+                case 'absent':
+                  return {
+                    label: 'Absent',
+                    color: '#dc3545',
+                    bgColor: '#ffe6e6',
+                    icon: 'x-circle' as FeatherIconName,
+                  };
+                case 'present':
+                  return {
+                    label: 'Present',
+                    color: '#28a745',
+                    bgColor: '#e6ffed',
+                    icon: 'check-circle' as FeatherIconName,
+                  };
+                case 'no-data':
+                default:
+                  return {
+                    label: 'No Data',
+                    color: '#6c757d',
+                    bgColor: '#f8f9fa',
+                    icon: 'help-circle' as FeatherIconName,
+                  };
+              }
+            };
+            
+            const statusConfig = getStatusConfig(status);
+
+            // Calculate total hours
+            let totalHours = '--:--';
+            if (attendance.timeIn && attendance.timeOut) {
+              try {
+                const diffMs = new Date(attendance.timeOut).getTime() - new Date(attendance.timeIn).getTime();
+                const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+                const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                totalHours = `${diffHrs.toString().padStart(2, '0')}:${diffMins.toString().padStart(2, '0')}`;
+              } catch (err) {
+                console.error('Error calculating total hours:', err);
+                totalHours = '??:??';
+              }
+            } else if (attendance.timeIn) {
+              totalHours = 'In Progress';
+            }
+
+            // Determine total hours style
+            let totalHoursStyle = styles.totalAbsent;
+            if (totalHours === 'In Progress') {
+              totalHoursStyle = styles.totalPartial;
+            } else if (totalHours !== '--:--') {
+              totalHoursStyle = styles.totalPresent;
+            }
+
             return (
-              <View key={`absent-${index}`} style={styles.clockCard}>
-                <View style={styles.absentIconCircle}>
-                  <Feather name="x-circle" size={24} color="red" />
+              <View key={date} style={styles.row}>
+                {/* Day Column */}
+                <View style={[styles.dataCell, styles.dayCell]}>
+                  <Text style={styles.dayName}>{dayName}</Text>
+                  <Text style={styles.dateNumber}>{formattedDate}</Text>
                 </View>
-                <View style={styles.clockInfo}>
-                  <Text style={styles.absentLabel}>Absent</Text>
-                  <Text>
-                    {attendance.date} - {getDayName(attendance.date)}
+
+                {/* Status Column */}
+                <View style={[styles.dataCell, styles.statusCell]}>
+                  <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
+                    <Feather name={statusConfig.icon} size={14} color={statusConfig.color} />
+                    <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                      {statusConfig.label}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Clock-In Column */}
+                <View style={[styles.dataCell, styles.timeCell]}>
+                  <View style={styles.timeContainer}>
+                    <Feather 
+                      name="log-in" 
+                      size={14} 
+                      color={attendance.timeIn ? "#28a745" : "#6c757d"} 
+                      style={styles.timeIcon} 
+                    />
+                    <Text style={[
+                      styles.timeText, 
+                      attendance.timeIn ? styles.timePresent : styles.timeAbsent
+                    ]}>
+                      {formatTime(attendance.timeIn)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Clock-Out Column */}
+                <View style={[styles.dataCell, styles.timeCell]}>
+                  <View style={styles.timeContainer}>
+                    <Feather 
+                      name="log-out" 
+                      size={14} 
+                      color={attendance.timeOut ? "#dc3545" : "#6c757d"} 
+                      style={styles.timeIcon} 
+                    />
+                    <Text style={[
+                      styles.timeText, 
+                      attendance.timeOut ? styles.timePresent : styles.timeAbsent
+                    ]}>
+                      {formatTime(attendance.timeOut)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Total Hours Column */}
+                <View style={[styles.dataCell, styles.totalCell]}>
+                  <Text style={[styles.totalText, totalHoursStyle]}>
+                    {totalHours}
                   </Text>
                 </View>
               </View>
             );
-          }
-
-          if (!attendance.timeIn && !attendance.timeOut) return null;
-
-          return times.map((item, subIndex) => {
-            const timeValue = attendance[item.key];
-            if (!timeValue) return null;
-
-            return (
-              <View key={`${index}-${subIndex}`} style={styles.clockCard}>
-                <View
-                  style={[styles.iconCircle, { backgroundColor: '#FFCCCC' }]}
-                >
-                  <Feather name={item.icon} size={24} color="red" />
-                </View>
-                <View style={styles.clockInfo}>
-                  <Text style={styles.clockTitle}>{item.label}</Text>
-                  <Text>
-                    {attendance.date} - {getDayName(attendance.date)}
-                  </Text>
-                </View>
-                <View style={styles.clockTime}>
-                  <Text>
-                    {new Date(timeValue).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-              </View>
-            );
-          });
-        })}
-      </ScrollView>
+          })}
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -161,71 +329,178 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
 export default AttendanceActivity;
 
 const styles = StyleSheet.create({
-  clockSection: {
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-  },
-  heading: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  clockCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  absentIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: 'red',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  clockInfo: {
+  container: {
     flex: 1,
-    marginLeft: 10,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    minHeight: 320,
+    maxHeight: 400,
   },
-  clockTitle: {
-    fontWeight: 'bold',
-    fontSize: 12,
+  centeredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    minHeight: 200,
   },
-  clockTime: {
-    alignItems: 'flex-end',
-  },
-  absentLabel: {
-    color: 'red',
-    fontWeight: 'bold',
+  loadingText: {
+    marginTop: 12,
     fontSize: 14,
+    color: '#666',
   },
-  center: {
-    marginTop: 30,
-    alignSelf: 'center',
+  errorText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#dc3545',
+    textAlign: 'center',
   },
-  noData: {
-    color: 'gray',
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  scrollWrapper: {
+  emptyText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '600',
+  },
+  emptySubtext: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#999',
+  },
+  scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 10,
+  },
+  heading: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: '#333',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e0e0e0',
+    marginBottom: 4,
+  },
+  headerCell: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#444',
+    textAlign: 'center',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  dataCell: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayCell: {
+    flex: 0.8,
+  },
+  statusCell: {
+    flex: 1.2,
+  },
+  timeCell: {
+    flex: 1,
+  },
+  totalCell: {
+    flex: 0.9,
+  },
+  dayName: {
+    fontSize: 11,
+    color: '#666',
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  dateNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 2,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    minWidth: 70,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeIcon: {
+    marginRight: 4,
+  },
+  timeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    minWidth: 45,
+    textAlign: 'center',
+  },
+  timePresent: {
+    color: '#333',
+  },
+  timeAbsent: {
+    color: '#999',
+  },
+  totalText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    minWidth: 60,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  totalPresent: {
+    color: '#007bff',
+    backgroundColor: '#e6f2ff',
+  },
+  totalPartial: {
+    color: '#ff9800',
+    backgroundColor: '#fff3e0',
+    fontSize: 10,
+  },
+  totalAbsent: {
+    color: '#999',
+    backgroundColor: '#f5f5f5',
   },
 });

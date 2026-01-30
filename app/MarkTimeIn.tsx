@@ -1,4 +1,3 @@
-// import type { RootStackParamList } from "../types";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import Feather from "@expo/vector-icons/Feather";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
@@ -6,12 +5,10 @@ import { BlurView } from 'expo-blur';
 import { CameraMode, CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import { Image } from "expo-image";
 import { LinearGradient } from 'expo-linear-gradient';
-// import { router } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useContext } from "react";
 import { Alert, Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as ImageManipulator from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useContext } from "react";
 import { EmployeeContext } from "../context/EmployeeContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -25,13 +22,11 @@ export default function MarkTimeInScreen() {
   const [uri, setUri] = useState<string | null>(null);
   const [mode, setMode] = useState<CameraMode>("picture");
   const [facing, setFacing] = useState<CameraType>("front");
-  const [showSuccess, setShowSuccess] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
-const { employee, setEmployee, logout } = useContext(EmployeeContext);
+const { employee } = useContext(EmployeeContext);
 const companyCode = employee?.companyCode;
 
  const { recordId } = useLocalSearchParams();
-  const recId = Number(recordId);
 
 
 
@@ -89,10 +84,7 @@ const companyCode = employee?.companyCode;
 
       if (!photo?.uri) return;
 
-
-
-
-      const compressed = await ImageManipulator.manipulateAsync(
+      const compressed = await (ImageManipulator as any).manipulateAsync(
         photo.uri,
         [],
         {
@@ -159,14 +151,6 @@ const companyCode = employee?.companyCode;
         type: `image/${fileType}`,
       } as any);
 
-
-
-
-      // const apiUrl = "";
-
-
-
-
       const res = await fetch(`https://${companyCode}.zentime.co.in/api/attendance/mark-time-in`, {
         method: "POST",
         body: formData,
@@ -176,7 +160,6 @@ const companyCode = employee?.companyCode;
 
 
       if (res.ok) {
-        setShowSuccess(true);
         Alert.alert("Success", "Time-in marked successfully!");
         setUri(null);
         router.replace("/MarkAttendance");
@@ -246,7 +229,7 @@ const companyCode = employee?.companyCode;
               colors={['#351153', '#4a1a7a']}
               style={styles.submitButtonGradient}
             >
-              <AntDesign name="checkcircle" size={20} color="white" />
+              <AntDesign name="check-circle" size={20} color="white" />
               <Text style={styles.submitButtonText}>Upload</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -295,7 +278,7 @@ const companyCode = employee?.companyCode;
             <Feather
               name={flashOn ? "zap" : "zap-off"}
               size={24}
-              color={flashOn ? "#351153" : "#351153"}
+              color="#351153"
             />
           </TouchableOpacity>
 

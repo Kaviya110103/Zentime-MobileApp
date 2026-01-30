@@ -1,17 +1,16 @@
 import BottomNavBar from "../components/BottomNavBar";
+// @ts-ignore - expo/vector-icons type declarations issue
 import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from 'expo-router';
-import React, { useCallback, useContext, useEffect, useMemo, useState, useRef } from "react";
+import React, { useCallback, useContext, useEffect, useState, useRef } from "react";
 import {
     ActivityIndicator,
     Alert,
     Dimensions,
     Image,
     Modal,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -19,6 +18,7 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmployeeContext } from "../context/EmployeeContext";
 
 const { width, height } = Dimensions.get("window");
@@ -58,7 +58,7 @@ const Employee = () => {
   const companyCode = employee?.companyCode;
   const employeeId = employee?.id;
   const router = useRouter();
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
   
   // Prevent multiple fetches
   const hasFetched = useRef(false);
@@ -69,8 +69,8 @@ const Employee = () => {
       if (!employeeId || hasFetched.current) return;
       
       // If employee data already exists in context, use it immediately
-      if (employee && employee.id === employeeId) {
-        setFormData(employee);
+      if (employee?.id === employeeId) {
+        setFormData(employee as unknown as Partial<Employee>);
         setLoading(false);
         hasFetched.current = true;
         return;
@@ -105,14 +105,20 @@ const Employee = () => {
   };
 
   const handleInputChange = useCallback((field: keyof Employee, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: field === "salary" ? (value === "" ? null : Number(value)) : value
-    }));
+    setFormData(prev => {
+      let fieldValue: any = value;
+      if (field === "salary") {
+        fieldValue = value === "" ? null : Number(value);
+      }
+      return {
+        ...prev,
+        [field]: fieldValue
+      };
+    });
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!employeeId) return;
+    if (!employeeId || !companyCode) return;
 
     try {
       setSaving(true);
@@ -155,6 +161,8 @@ const Employee = () => {
   }, [employee]);
 
   const pickImageAndUpload = useCallback(async () => {
+    if (!companyCode || !employeeId) return;
+
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
       alert("Permission to access gallery is required!");
@@ -162,13 +170,11 @@ const Employee = () => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 1,
     });
 
     if (!result.canceled && result.assets.length > 0) {
       const selectedAsset = result.assets[0];
-      setImageUri(selectedAsset.uri);
 
       try {
         const response = await fetch(
@@ -204,57 +210,6 @@ const Employee = () => {
     }
   }, [employeeId, companyCode, setEmployee]);
 
-  // FIXED: Moved component definitions outside of useMemo for better performance
-  const ProfileSection = React.memo<{ title: string; children: React.ReactNode }>(({ title, children }) => (
-    <View style={[styles.section, isDesktop && styles.desktopSection]}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionContent}>{children}</View>
-    </View>
-  ));
-
-  const InfoRow = React.memo<{ icon: React.ReactNode; label: string; value: string | number }>(({
-    icon,
-    label,
-    value,
-  }) => (
-    <View style={styles.infoRow}>
-      <View style={styles.infoLabel}>
-        {icon}
-        <Text style={styles.infoLabelText}>{label}</Text>
-      </View>
-      <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
-        {value}
-      </Text>
-    </View>
-  ));
-
-  const EditableInfoRow = React.memo<{
-    icon: React.ReactNode;
-    label: string;
-    field: keyof Employee;
-    value: string | number | null;
-    keyboardType?: string;
-    onChangeText: (field: keyof Employee, value: string) => void;
-  }>(({ icon, label, field, value, keyboardType = "default", onChangeText }) => {
-    return (
-      <View style={styles.editableInfoRow}>
-        <View style={styles.infoLabel}>
-          {icon}
-          <Text style={styles.infoLabelText}>{label}</Text>
-        </View>
-        <TextInput
-          style={styles.editInput}
-          value={value === null ? "" : String(value)}
-          onChangeText={(text) => onChangeText(field, text)}
-          keyboardType={keyboardType as any}
-          placeholder={`Enter ${label.toLowerCase()}`}
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-      </View>
-    );
-  });
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -272,7 +227,7 @@ const Employee = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <LinearGradient colors={["#ffffff", "#f8fafc"]} style={styles.background}>
         {/* Header */}
         <LinearGradient
@@ -561,9 +516,60 @@ const Employee = () => {
         {/* Bottom Nav Bar */}
         <BottomNavBar activeTab="Profile" />
       </LinearGradient>
-    </SafeAreaView>
+    </View>
   );
 };
+
+// Component definitions moved outside of Employee component
+const ProfileSection = React.memo<{ title: string; children: React.ReactNode }>(({ title, children }) => (
+  <View style={[styles.section, Dimensions.get('window').width >= 768 && styles.desktopSection]}>
+    <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={styles.sectionContent}>{children}</View>
+  </View>
+));
+
+const InfoRow = React.memo<{ icon: React.ReactNode; label: string; value: string | number }>(({
+  icon,
+  label,
+  value,
+}) => (
+  <View style={styles.infoRow}>
+    <View style={styles.infoLabel}>
+      {icon}
+      <Text style={styles.infoLabelText}>{label}</Text>
+    </View>
+    <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
+      {value}
+    </Text>
+  </View>
+));
+
+const EditableInfoRow = React.memo<{
+  icon: React.ReactNode;
+  label: string;
+  field: keyof Employee;
+  value: string | number | null;
+  keyboardType?: string;
+  onChangeText: (field: keyof Employee, value: string) => void;
+}>(({ icon, label, field, value, keyboardType = "default", onChangeText }) => {
+  return (
+    <View style={styles.editableInfoRow}>
+      <View style={styles.infoLabel}>
+        {icon}
+        <Text style={styles.infoLabelText}>{label}</Text>
+      </View>
+      <TextInput
+        style={styles.editInput}
+        value={value === null ? "" : String(value)}
+        onChangeText={(text) => onChangeText(field, text)}
+        keyboardType={keyboardType as any}
+        placeholder={`Enter ${label.toLowerCase()}`}
+        autoCorrect={false}
+        autoCapitalize="none"
+      />
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   container: {

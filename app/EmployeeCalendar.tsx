@@ -1,4 +1,4 @@
-import { Calendar } from 'react-native-calendars';
+import { Calendar, DateData } from 'react-native-calendars';
 import { 
   View, 
   Text, 
@@ -7,13 +7,15 @@ import {
   StyleSheet, 
   TouchableOpacity, 
   ScrollView,
-  SafeAreaView,
   ActivityIndicator,
-  Dimensions
+  Dimensions,
+  Alert,
+  Platform,
+  StatusBar
 } from 'react-native';
 import { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
-import { Feather, MaterialIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { EmployeeContext } from '../context/EmployeeContext';
 import BottomNavBar from '../components/BottomNavBar';
@@ -21,9 +23,9 @@ import BottomNavBar from '../components/BottomNavBar';
 type AttendanceData = {
   date: string;
   attendanceStatus: string;
-  dayStatus: string;
-  timeIn: string;
-  timeOut: string;
+  dayStatus?: string;
+  timeIn?: string;
+  timeOut?: string;
   imageInBase64?: string;
   imageOutBase64?: string;
   location?: string;
@@ -31,117 +33,222 @@ type AttendanceData = {
   missedTimes?: number;
 };
 
+type MarkedDate = {
+  marked?: boolean;
+  dotColor?: string;
+  selectedDotColor?: string;
+  selected?: boolean;
+  selectedColor?: string;
+  customStyles?: {
+    container?: object;
+    text?: object;
+  };
+};
+
+type MarkedDates = {
+  [date: string]: MarkedDate;
+};
+
 const { width } = Dimensions.get('window');
 
 export default function EmployeeCalendar() {
-  const [markedDates, setMarkedDates] = useState({});
+  const [markedDates, setMarkedDates] = useState<MarkedDates>({});
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [attendanceData, setAttendanceData] = useState<AttendanceData | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
- const { employee } = useContext(EmployeeContext);
- const companyCode = employee?.companyCode;  // 👈 get companyCode here
+  const { employee } = useContext(EmployeeContext);
+  const companyCode = employee?.companyCode;
   const employeeId = typeof employee?.id === 'number' ? employee.id : 0;
+  const [isLoadingMonthly, setIsLoadingMonthly] = useState(false);
+  
+  const [isEmployeeReady, setIsEmployeeReady] = useState(false);
+
   useEffect(() => {
-    const today = new Date();
-    fetchMonthlyAttendance(today.getMonth() + 1, today.getFullYear());
-  }, []);
+    if (employee?.id && employee?.companyCode) {
+      setIsEmployeeReady(true);
+      const today = new Date();
+      fetchMonthlyAttendance(today.getMonth() + 1, today.getFullYear());
+    }
+  }, [employee]);
 
   const fetchMonthlyAttendance = async (month: number, year: number) => {
+    if (!isEmployeeReady) return;
+    
+    setIsLoadingMonthly(true);
     try {
       const url = `https://${companyCode}.zentime.co.in/api/attendance/monthly/${employeeId}/${year}/${String(month).padStart(2, '0')}`;
+      
       const res = await axios.get(url, {
-        timeout: 10000,
+        timeout: 15000,
         headers: {
           'Content-Type': 'application/json',
         },
       });
+      
       const data = res.data;
 
-      const marked: Record<string, any> = {};
-      data.forEach((item: AttendanceData) => {
-        const [dd, mm, yyyy] = item.date.split('/');
-        const formattedDate = `${yyyy}-${mm}-${dd}`;
-
-        let dotColor = '#757575'; // Default gray
-        if (item.attendanceStatus === 'Present') dotColor = '#4CAF50';
-        if (item.attendanceStatus === 'Absent') dotColor = '#F44336';
-        if (item.attendanceStatus === 'Late') dotColor = '#FF9800';
-
-        marked[formattedDate] = {
-          marked: true,
-          dotColor,
-          selectedDotColor: '#FFFFFF',
-          customStyles: {
-            container: {
-              backgroundColor: dotColor + '20', // Add opacity
-              borderRadius: 8,
-              padding: 4,
-            },
-            text: {
-              color: '#1C1C1E',
-              fontWeight: '600',
+      const marked: MarkedDates = {};
+      
+      if (Array.isArray(data)) {
+        data.forEach((item: AttendanceData) => {
+          if (!item.date) return;
+          
+          try {
+            let formattedDate = '';
+            if (item.date.includes('/')) {
+              const [dd, mm, yyyy] = item.date.split('/');
+              formattedDate = `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+            } else if (item.date.includes('-')) {
+              formattedDate = item.date;
             }
-          }
-        };
-      });
+            
+            if (!formattedDate) return;
+            
+            let dotColor = '#757575';
+            if (item.attendanceStatus === 'Present') dotColor = '#4CAF50';
+            else if (item.attendanceStatus === 'Absent') dotColor = '#F44336';
+            else if (item.attendanceStatus === 'Late') dotColor = '#FF9800';
+            else if (item.attendanceStatus === 'Half Day') dotColor = '#FFC107';
 
+            marked[formattedDate] = {
+              marked: true,
+              dotColor,
+              selectedDotColor: '#FFFFFF',
+            };
+          } catch (error) {
+            console.error('Error processing date:', item.date, error);
+          }
+        });
+      }
+      
       setMarkedDates(marked);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching monthly attendance:', err);
+      Alert.alert(
+        'Error',
+        err.response?.data?.message || err.message || 'Failed to load attendance data',
+        [{ text: 'OK' }]
+      );
       setMarkedDates({});
+    } finally {
+      setIsLoadingMonthly(false);
     }
   };
 
-  const onDayPress = async (day: any) => {
+  const onDayPress = async (day: DateData) => {
+    console.log('Day pressed:', day.dateString); // Debug log
+    
+    if (!isEmployeeReady) {
+      Alert.alert('Please wait', 'Employee data is still loading...');
+      return;
+    }
+    
     setSelectedDate(day.dateString);
     setLoading(true);
-    const [yyyy, mm, dd] = day.dateString.split('-');
-    const formatted = `${yyyy}-${mm}-${dd}`;
-
+    
     try {
-      const res = await axios.get(`https://${companyCode}.zentime.co.in/api/attendance/${employeeId}/${formatted}`, {
-        timeout: 10000,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      setAttendanceData(res.data);
-      setModalVisible(true);
-    } catch (err) {
+      const res = await axios.get(
+        `https://${companyCode}.zentime.co.in/api/attendance/${employeeId}/${day.dateString}`, 
+        {
+          timeout: 10000,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log('Daily attendance response:', res.data); // Debug log
+      
+      if (res.data && Object.keys(res.data).length > 0) {
+        setAttendanceData(res.data);
+      } else {
+        setAttendanceData(null);
+      }
+    } catch (err: any) {
       console.error('Error fetching daily attendance:', err);
-      setAttendanceData(null);
-      setModalVisible(true);
+      
+      if (err.response?.status === 404) {
+        setAttendanceData(null);
+      } else {
+        Alert.alert(
+          'Error',
+          err.response?.data?.message || 'Failed to load daily attendance'
+        );
+        setAttendanceData(null);
+      }
     } finally {
       setLoading(false);
+      setModalVisible(true);
+    }
+  };
+
+  const onMonthChange = (month: { month: number; year: number }) => {
+    if (isEmployeeReady) {
+      fetchMonthlyAttendance(month.month, month.year);
     }
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    try {
+      let date: Date;
+      
+      if (dateString.includes('/')) {
+        const [dd, mm, yyyy] = dateString.split('/');
+        date = new Date(Number.parseInt(yyyy), Number.parseInt(mm) - 1, Number.parseInt(dd));
+      } else if (dateString.includes('-')) {
+        date = new Date(dateString);
+      } else {
+        date = new Date(dateString);
+      }
+      
+      if (Number.isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return 'Invalid Date';
+    }
   };
 
-  const formatTime = (timeString: string) => {
-    if (!timeString) return 'N/A';
+  const formatTime = (timeString?: string) => {
+    if (!timeString) return '--:--';
+    
     try {
       const date = new Date(timeString);
+      if (Number.isNaN(date.getTime())) {
+        const regex = /(\d{1,2}):(\d{2})/;
+        const match = regex.exec(timeString);
+        if (match) {
+          const hours = Number.parseInt(match[1]);
+          const minutes = Number.parseInt(match[2]);
+          const ampm = hours >= 12 ? 'PM' : 'AM';
+          const displayHours = hours % 12 || 12;
+          return `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+        }
+        return timeString;
+      }
+      
       return date.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: true
       });
     } catch {
-      return timeString;
+      return timeString || '--:--';
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status?: string) => {
+    if (!status) return '#757575';
+    
     switch (status) {
       case 'Present': return '#4CAF50';
       case 'Absent': return '#F44336';
@@ -151,45 +258,223 @@ export default function EmployeeCalendar() {
     }
   };
 
+  // Show loading while employee data is loading
+  if (!isEmployeeReady) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color="#7726B9" />
+        <Text style={styles.loadingText}>Loading employee data...</Text>
+      </View>
+    );
+  }
+
+  const renderModalContent = () => {
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading attendance data...</Text>
+        </View>
+      );
+    }
+    
+    if (attendanceData) {
+      return (
+        <>
+          <View style={styles.dateHeader}>
+            <Feather name="calendar" size={20} color="#007AFF" />
+            <Text style={styles.dateText}>
+              {formatDate(attendanceData.date)}
+            </Text>
+          </View>
+
+          <View style={[
+            styles.statusCard,
+            {backgroundColor: getStatusColor(attendanceData.attendanceStatus) + '20'}
+          ]}>
+            <Text style={[
+              styles.statusText,
+              {color: getStatusColor(attendanceData.attendanceStatus)}
+            ]}>
+              {attendanceData.attendanceStatus || 'No Status'}
+            </Text>
+            {!!attendanceData.dayStatus && (
+              <Text style={styles.dayStatusText}>• {attendanceData.dayStatus}</Text>
+            )}
+          </View>
+
+          <View style={styles.detailsCard}>
+            <View style={styles.detailRow}>
+              <View style={styles.detailIcon}>
+                <Feather name="clock" size={18} color="#6B7280" />
+              </View>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Time In</Text>
+                <Text style={styles.detailValue}>
+                  {formatTime(attendanceData.timeIn)}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.detailRow}>
+              <View style={styles.detailIcon}>
+                <Feather name="clock" size={18} color="#6B7280" />
+              </View>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Time Out</Text>
+                <Text style={styles.detailValue}>
+                  {formatTime(attendanceData.timeOut)}
+                </Text>
+              </View>
+            </View>
+            
+            {!!attendanceData.location && (
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <Feather name="map-pin" size={18} color="#6B7280" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Location</Text>
+                  <Text style={styles.detailValue}>{attendanceData.location}</Text>
+                </View>
+              </View>
+            )}
+            
+            {attendanceData.missedTimes != null && attendanceData.missedTimes > 0 && (
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <Feather name="alert-circle" size={18} color="#F44336" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Missed Time</Text>
+                  <Text style={[styles.detailValue, {color: '#F44336'}]}>
+                    {attendanceData.missedTimes} minutes
+                  </Text>
+                </View>
+              </View>
+            )}
+            
+            {!!attendanceData.timoutReason && (
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <Feather name="info" size={18} color="#FF9800" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Reason</Text>
+                  <Text style={[styles.detailValue, {color: '#FF9800'}]}>
+                    {attendanceData.timoutReason}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {(!!attendanceData.imageInBase64 || !!attendanceData.imageOutBase64) && (
+            <View style={styles.imagesSection}>
+              <Text style={styles.sectionTitle}>Check-in Photos</Text>
+              <View style={styles.imageRow}>
+                {attendanceData.imageInBase64 ? (
+                  <View style={styles.imageContainer}>
+                    <Image 
+                      source={{ 
+                        uri: `data:image/jpeg;base64,${attendanceData.imageInBase64}`,
+                        cache: 'force-cache'
+                      }} 
+                      style={styles.image}
+                      resizeMode="cover"
+                      onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
+                    />
+                    <Text style={styles.imageLabel}>Check-in</Text>
+                  </View>
+                ) : (
+                  <View style={styles.noImageContainer}>
+                    <Feather name="camera-off" size={32} color="#9CA3AF" />
+                    <Text style={styles.noImageText}>No check-in photo</Text>
+                  </View>
+                )}
+                
+                {attendanceData.imageOutBase64 ? (
+                  <View style={styles.imageContainer}>
+                    <Image 
+                      source={{ 
+                        uri: `data:image/jpeg;base64,${attendanceData.imageOutBase64}`,
+                        cache: 'force-cache'
+                      }} 
+                      style={styles.image}
+                      resizeMode="cover"
+                      onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
+                    />
+                    <Text style={styles.imageLabel}>Check-out</Text>
+                  </View>
+                ) : (
+                  <View style={styles.noImageContainer}>
+                    <Feather name="camera-off" size={32} color="#9CA3AF" />
+                    <Text style={styles.noImageText}>No check-out photo</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+        </>
+      );
+    }
+    
+    return (
+      <View style={styles.noDataContainer}>
+        <Feather name="calendar" size={48} color="#9CA3AF" />
+        <Text style={styles.noDataText}>No attendance record found for this date</Text>
+        <Text style={styles.noDataSubtext}>
+          {selectedDate ? formatDate(selectedDate) : 'Selected date'}
+        </Text>
+      </View>
+    );
+  };
+
+  const getStatusBarPadding = () => {
+    const iosPadding = 60;
+    const androidPadding = StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 40;
+    return Platform.OS === 'ios' ? iosPadding : androidPadding;
+  };
+
+  const modalContainerStyle = {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: getStatusBarPadding(),
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-     <LinearGradient
-                 colors={['#7726B9', '#5E1D9E']}
-                 style={styles.header}
-                 start={{ x: 0, y: 0 }}
-                 end={{ x: 1, y: 0 }}
-               >
-                 <Text style={styles.headerTitle}>Leave & Permission Status</Text>
-               </LinearGradient>
+    <View style={styles.container}>
+      <StatusBar backgroundColor="#7726B9" barStyle="light-content" />
+      <LinearGradient
+        colors={['#7726B9', '#5E1D9E']}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <Text style={styles.headerTitle}>Leave & Permission Status</Text>
+      </LinearGradient>
 
       <View style={styles.calendarWrapper}>
+        {isLoadingMonthly && (
+          <View style={styles.monthlyLoading}>
+            <ActivityIndicator size="small" color="#7726B9" />
+          </View>
+        )}
+        
         <View style={styles.calendarContainer}>
           <Calendar
             markedDates={{
               ...markedDates,
-              ...(selectedDate
-                ? {
-                    [selectedDate]: {
-                      ...(markedDates[selectedDate] || {}),
-                      selected: true,
-                      selectedColor: '#007AFF',
-                      customStyles: {
-                        container: {
-                          backgroundColor: '#007AFF20',
-                          borderRadius: 8,
-                          padding: 4,
-                        },
-                        text: {
-                          color: '#007AFF',
-                          fontWeight: 'bold',
-                        }
-                      }
-                    },
-                  }
-                : {}),
+              ...(selectedDate && {
+                [selectedDate]: {
+                  ...markedDates[selectedDate],
+                  selected: true,
+                  selectedColor: '#007AFF',
+                }
+              })
             }}
             onDayPress={onDayPress}
-            onMonthChange={(month) => fetchMonthlyAttendance(month.month, month.year)}
+            onMonthChange={onMonthChange}
             theme={{
               backgroundColor: '#FFFFFF',
               calendarBackground: '#FFFFFF',
@@ -205,44 +490,13 @@ export default function EmployeeCalendar() {
               disabledArrowColor: '#D1D5DB',
               monthTextColor: '#111827',
               indicatorColor: '#007AFF',
-              textDayFontFamily: 'Inter-Medium',
-              textMonthFontFamily: 'Inter-SemiBold',
-              textDayHeaderFontFamily: 'Inter-SemiBold',
               textDayFontSize: 14,
               textMonthFontSize: 16,
               textDayHeaderFontSize: 12,
             }}
             style={styles.calendar}
-            markingType={'custom'}
-            dayComponent={({date, state, marking}) => {
-              return (
-                <TouchableOpacity 
-                  style={[
-                    styles.dayContainer,
-                    marking?.customStyles?.container,
-                    state === 'today' && styles.todayContainer,
-                    marking?.selected && styles.selectedDayContainer
-                  ]}
-                  onPress={() => onDayPress({dateString: date.dateString})}
-                >
-                  <Text style={[
-                    styles.dayText,
-                    state === 'disabled' && styles.disabledText,
-                    marking?.customStyles?.text,
-                    state === 'today' && !marking?.selected && styles.todayText,
-                    marking?.selected && styles.selectedDayText
-                  ]}>
-                    {date.day}
-                  </Text>
-                  {marking?.marked && (
-                    <View style={[
-                      styles.dot,
-                      {backgroundColor: marking.dotColor}
-                    ]} />
-                  )}
-                </TouchableOpacity>
-              );
-            }}
+            markingType="simple"
+            enableSwipeMonths={true}
           />
         </View>
       </View>
@@ -252,135 +506,32 @@ export default function EmployeeCalendar() {
         animationType="slide" 
         onRequestClose={() => setModalVisible(false)}
         presentationStyle="pageSheet"
+        statusBarTranslucent={false}
       >
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={modalContainerStyle}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Attendance Details</Text>
             <TouchableOpacity 
               style={styles.closeButton}
               onPress={() => setModalVisible(false)}
+              activeOpacity={0.7}
             >
               <Feather name="x" size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
-                <Text style={styles.loadingText}>Loading attendance data...</Text>
-              </View>
-            ) : attendanceData ? (
-              <>
-                <View style={styles.dateHeader}>
-                  <Feather name="calendar" size={20} color="#007AFF" />
-                  <Text style={styles.dateText}>{formatDate(attendanceData.date)}</Text>
-                </View>
-
-                {/* Status Card */}
-                <View style={[
-                  styles.statusCard,
-                  {backgroundColor: getStatusColor(attendanceData.attendanceStatus) + '20'}
-                ]}>
-                  <Text style={[
-                    styles.statusText,
-                    {color: getStatusColor(attendanceData.attendanceStatus)}
-                  ]}>
-                    {attendanceData.attendanceStatus}
-                  </Text>
-                  {attendanceData.dayStatus && (
-                    <Text style={styles.dayStatusText}>• {attendanceData.dayStatus}</Text>
-                  )}
-                </View>
-
-                {/* Time Details */}
-                <View style={styles.detailsCard}>
-                  <View style={styles.detailRow}>
-                    <View style={styles.detailIcon}>
-                      <Feather name="clock" size={18} color="#6B7280" />
-                    </View>
-                    <View style={styles.detailContent}>
-                      <Text style={styles.detailLabel}>Time In</Text>
-                      <Text style={styles.detailValue}>{formatTime(attendanceData.timeIn)}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <View style={styles.detailIcon}>
-                      <Feather name="clock" size={18} color="#6B7280" />
-                    </View>
-                    <View style={styles.detailContent}>
-                      <Text style={styles.detailLabel}>Time Out</Text>
-                      <Text style={styles.detailValue}>{formatTime(attendanceData.timeOut)}</Text>
-                    </View>
-                  </View>
-                  
-                  {attendanceData.location && (
-                    <View style={styles.detailRow}>
-                      <View style={styles.detailIcon}>
-                        <Feather name="map-pin" size={18} color="#6B7280" />
-                      </View>
-                      <View style={styles.detailContent}>
-                        <Text style={styles.detailLabel}>Location</Text>
-                        <Text style={styles.detailValue}>{attendanceData.location}</Text>
-                      </View>
-                    </View>
-                  )}
-                  
-                  {attendanceData.missedTimes != null && (
-                    <View style={styles.detailRow}>
-                      <View style={styles.detailIcon}>
-                        <Feather name="alert-circle" size={18} color="#F44336" />
-                      </View>
-                      <View style={styles.detailContent}>
-                        <Text style={styles.detailLabel}>Missed Time</Text>
-                        <Text style={[styles.detailValue, {color: '#F44336'}]}>
-                          {attendanceData.missedTimes} minutes
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
-
-                {/* Images Section */}
-                {(attendanceData.imageInBase64 || attendanceData.imageOutBase64) && (
-                  <View style={styles.imagesSection}>
-                    <Text style={styles.sectionTitle}>Check-in Photos</Text>
-                    <View style={styles.imageRow}>
-                      {attendanceData.imageInBase64 && (
-                        <View style={styles.imageContainer}>
-                          <Image 
-                            source={{ uri: `data:image/jpeg;base64,${attendanceData.imageInBase64}` }} 
-                            style={styles.image}
-                            resizeMode="cover"
-                          />
-                        </View>
-                      )}
-                      
-                      {attendanceData.imageOutBase64 && (
-                        <View style={styles.imageContainer}>
-                          <Image 
-                            source={{ uri: `data:image/jpeg;base64,${attendanceData.imageOutBase64}` }} 
-                            style={styles.image}
-                            resizeMode="cover"
-                          />
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                )}
-              </>
-            ) : (
-              <View style={styles.noDataContainer}>
-                <Text style={styles.noDataText}>No attendance record found for this date</Text>
-              </View>
-            )}
+          <ScrollView 
+            style={styles.modalContent} 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 20 }}
+          >
+            {renderModalContent()}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
-                <BottomNavBar activeTab="" />
       
-    </SafeAreaView>
+      <BottomNavBar activeTab="" />
+    </View>
   );
 }
 
@@ -389,8 +540,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  loadingScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+  },
   header: {
-    paddingTop: 20,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 20,
@@ -398,21 +555,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   headerTitle: {
-    paddingTop: 13,
     fontSize: 24,
     fontWeight: 'bold',
     color: '#ffffff',
     marginBottom: 4,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
-  },
   calendarWrapper: {
     flex: 1,
     alignItems: 'center',
     padding: 16,
+  },
+  monthlyLoading: {
+    position: 'absolute',
+    top: 0,
+    right: 20,
+    zIndex: 10,
   },
   calendarContainer: {
     width: '100%',
@@ -439,8 +596,8 @@ const styles = StyleSheet.create({
   },
   dayText: {
     fontSize: 14,
-    fontFamily: 'Inter-Medium',
     color: '#1F2937',
+    fontWeight: '500',
   },
   disabledText: {
     color: '#D1D5DB',
@@ -457,7 +614,7 @@ const styles = StyleSheet.create({
   },
   selectedDayText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
   },
   dot: {
     position: 'absolute',
@@ -465,10 +622,6 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -480,16 +633,15 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
     color: '#111827',
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
     borderRadius: 12,
   },
   modalContent: {
     flex: 1,
-    padding: 20,
   },
   dateHeader: {
     flexDirection: 'row',
@@ -498,12 +650,15 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#F3F4F6',
     borderRadius: 12,
+    marginHorizontal: 20,
+    marginTop: 10,
   },
   dateText: {
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
     color: '#111827',
     marginLeft: 8,
+    flex: 1,
   },
   statusCard: {
     flexDirection: 'row',
@@ -512,14 +667,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 16,
     alignSelf: 'flex-start',
+    marginHorizontal: 20,
   },
   statusText: {
     fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
   },
   dayStatusText: {
     fontSize: 14,
-    fontFamily: 'Inter-Medium',
     color: '#6B7280',
     marginLeft: 8,
   },
@@ -528,15 +683,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,
+    marginHorizontal: 20,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   detailIcon: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: 8,
     backgroundColor: '#E5E7EB',
     justifyContent: 'center',
@@ -548,61 +704,83 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 13,
-    fontFamily: 'Inter-Medium',
     color: '#6B7280',
     marginBottom: 2,
   },
   detailValue: {
     fontSize: 15,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
     color: '#111827',
   },
   imagesSection: {
     marginBottom: 24,
+    marginHorizontal: 20,
   },
   sectionTitle: {
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
     color: '#111827',
     marginBottom: 12,
   },
   imageRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 16,
+    gap: 12,
   },
   imageContainer: {
     flex: 1,
     borderRadius: 12,
     overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
   },
   image: {
     width: '100%',
-    height: 180,
+    height: 150,
     backgroundColor: '#F3F4F6',
   },
-  loadingContainer: {
+  imageLabel: {
+    textAlign: 'center',
+    paddingVertical: 8,
+    fontSize: 12,
+    color: '#6B7280',
+    backgroundColor: '#F3F4F6',
+  },
+  noImageContainer: {
     flex: 1,
+    height: 150,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+  },
+  noImageText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 8,
+  },
+  loadingContainer: {
     paddingVertical: 60,
+    alignItems: 'center',
   },
   loadingText: {
     fontSize: 14,
-    fontFamily: 'Inter-Medium',
     color: '#6B7280',
     marginTop: 16,
   },
   noDataContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingVertical: 60,
+    alignItems: 'center',
+    marginHorizontal: 20,
   },
   noDataText: {
     fontSize: 16,
-    fontFamily: 'Inter-Medium',
     color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noDataSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
     textAlign: 'center',
   },
 });

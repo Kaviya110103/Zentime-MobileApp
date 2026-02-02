@@ -1,7 +1,8 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from "axios";
 import { LinearGradient } from 'expo-linear-gradient';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+// import { Calendar, CircleCheck as CheckCircle, Clock, FileText, Send } from 'lucide-react-native';
+import { Feather, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 
 import React, { useContext, useState } from "react";
 import {
@@ -15,16 +16,20 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+// import EmployeeLeavePermission from "@/components/EmployeeLeavePermission";
 import BottomNavBar from "../components/BottomNavBar";
 
 const { width } = Dimensions.get('window');
 
+// const EmployeePermission = () => {
+//   const route = useRoute<RouteProp<RootStackParamList, 'EmployeePermission'>>();
+//   const { employeeId } = route.params;
 import { EmployeeContext } from "../context/EmployeeContext";
 import { router, useLocalSearchParams } from 'expo-router';
 
 const EmployeePermission = () => {
    const { recordId } = useLocalSearchParams();
- const {  employee } = useContext(EmployeeContext);
+ const {  employee, setEmployee } = useContext(EmployeeContext);
   const employeeId = employee?.id;
   const [leaveType] = useState("permission");
   const [reason, setReason] = useState("");

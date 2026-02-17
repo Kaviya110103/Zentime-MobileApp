@@ -5,50 +5,40 @@ import { BlurView } from 'expo-blur';
 import { CameraMode, CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import { Image } from "expo-image";
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useRef, useState, useContext } from "react";
-import { Alert, Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useRef, useState, useContext, useEffect } from "react";
+import { Alert, Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
 import * as ImageManipulator from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
 import { EmployeeContext } from "../context/EmployeeContext";
 
-
-
-
-
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-
-
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function MarkTimeOutScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const ref = useRef<CameraView>(null);
   const [uri, setUri] = useState<string | null>(null);
-  const [mode, setMode] = useState<CameraMode>("picture");
+  const [mode] = useState<CameraMode>("picture");
   const [facing, setFacing] = useState<CameraType>("front");
   const [flashOn, setFlashOn] = useState(false);
-const { employee } = useContext(EmployeeContext);
-const companyCode = employee?.companyCode; 
+  const [uploading, setUploading] = useState(false);
+  const { employee } = useContext(EmployeeContext);
+  const companyCode = employee?.companyCode;
+  const { recordId } = useLocalSearchParams();
+  const [cameraReady, setCameraReady] = useState(false);
 
- const { recordId } = useLocalSearchParams();
-
-
-
-
-
-
-
+  useEffect(() => {
+    // Request permissions on mount
+    if (!permission?.granted) {
+      requestPermission();
+    }
+  }, []);
 
   if (!permission) return null;
- 
+
   if (!permission.granted) {
     return (
       <View style={styles.permissionContainer}>
-        <LinearGradient
-          colors={['#ffffff', '#f8f8f8']}
-          style={styles.permissionGradient}
-        >
+        <LinearGradient colors={['#ffffff', '#f8f8f8']} style={styles.permissionGradient}>
           <View style={styles.permissionContent}>
             <View style={styles.permissionIconContainer}>
               <AntDesign name="camera" size={48} color="#351153" />
@@ -62,10 +52,7 @@ const companyCode = employee?.companyCode;
               onPress={requestPermission}
               activeOpacity={0.8}
             >
-              <LinearGradient
-                colors={['#351153', '#4a1a7a']}
-                style={styles.permissionButtonGradient}
-              >
+              <LinearGradient colors={['#351153', '#4a1a7a']} style={styles.permissionButtonGradient}>
                 <Text style={styles.permissionButtonText}>Allow Camera Access</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -75,35 +62,32 @@ const companyCode = employee?.companyCode;
     );
   }
 
-
-
-
   const takePicture = async () => {
+    if (!cameraReady) {
+      Alert.alert("Error", "Camera is not ready yet. Please wait.");
+      return;
+    }
+
     try {
       const photo = await ref.current?.takePictureAsync({
-        quality: 1,
-        skipProcessing: true,
+        quality: 0.8,
+        skipProcessing: false,
       });
 
+      if (!photo?.uri) {
+        Alert.alert("Error", "Failed to capture image");
+        return;
+      }
 
-
-
-      if (!photo?.uri) return;
-
-
-
-
-      const compressed = await (ImageManipulator as any).manipulateAsync(
+      // Compress image
+      const compressed = await ImageManipulator.manipulateAsync(
         photo.uri,
-        [],
+        [{ resize: { width: 1024 } }],
         {
-          compress: 0.5,
+          compress: 0.7,
           format: ImageManipulator.SaveFormat.JPEG,
         }
       );
-
-
-
 
       setUri(compressed.uri);
     } catch (error) {
@@ -112,91 +96,81 @@ const companyCode = employee?.companyCode;
     }
   };
 
-
-
-
-  const toggleMode = () => {
-    setMode((prev) => (prev === "picture" ? "video" : "picture"));
-  };
-
-
-
-
   const toggleFacing = () => {
     setFacing((prev) => (prev === "back" ? "front" : "back"));
   };
-
-
-
 
   const toggleFlash = () => {
     setFlashOn(prev => !prev);
   };
 
-
-
-
   const uploadPhoto = async () => {
-    if (!uri || !recordId) {
+    if (!uri) {
       Alert.alert("Error", "Please capture an image first");
       return;
     }
 
+    if (!recordId) {
+      Alert.alert("Error", "Invalid record ID");
+      return;
+    }
 
-
+    setUploading(true);
 
     try {
-      const uriParts = uri.split(".");
-      const fileType = uriParts[uriParts.length - 1];
-
-
-
-
       const formData = new FormData();
       formData.append("recordId", recordId.toString());
-      formData.append("imageOut", {
-        uri,
-        name: `timeout_${Date.now()}.${fileType}`,
-        type: `image/${fileType}`,
-      } as any);
+      
+      // Get file info
+      const filename = uri.split('/').pop() || `timeout_${Date.now()}.jpg`;
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
 
-      const res = await fetch(`https://${companyCode}.zentime.co.in/api/attendance/mark-time-out`, {
-        method: "POST",
-        body: formData,
+      // @ts-ignore - React Native FormData typing issue
+      formData.append("imageOut", {
+        uri: uri,
+        name: filename,
+        type: type,
       });
 
+      const response = await fetch(`https://${companyCode}.zentime.co.in/api/attendance/mark-time-out`, {
+        method: "POST",
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
-
-
-      if (res.ok) {
-        Alert.alert("Success", "Time-out marked successfully!");
-        setUri(null);
-        router.replace("/MarkAttendance");
+      const responseText = await response.text();
+      
+      if (response.ok) {
+        Alert.alert("Success", "Time-out marked successfully!", [
+          { 
+            text: "OK", 
+            onPress: () => {
+              setUri(null);
+              router.replace("/MarkAttendance");
+            }
+          }
+        ]);
       } else {
-        throw new Error("Upload failed");
+        throw new Error(responseText || "Upload failed");
       }
     } catch (error: any) {
       console.error("Upload error:", error);
-      Alert.alert("Error", "Upload failed: " + error.message);
+      Alert.alert("Error", "Upload failed: " + (error.message || "Please try again"));
+    } finally {
+      setUploading(false);
     }
   };
 
-
-
-
   const renderPicture = () => (
     <View style={styles.previewContainer}>
-      <LinearGradient
-        colors={['#ffffff', '#f8f8f8']}
-        style={styles.previewGradient}
-      >
+      <LinearGradient colors={['#ffffff', '#f8f8f8']} style={styles.previewGradient}>
         <View style={styles.previewHeader}>
           <Text style={styles.previewTitle}>Verify Your Attendance</Text>
           <Text style={styles.previewSubtitle}>Please confirm your time-out photo</Text>
         </View>
-
-
-
 
         <View style={styles.imageContainer}>
           <Image
@@ -205,50 +179,41 @@ const companyCode = employee?.companyCode;
             style={styles.capturedImage}
             transition={200}
           />
-          <View style={styles.imageOverlay} />
         </View>
-
-
-
 
         <View style={styles.buttonGroup}>
           <TouchableOpacity
             style={[styles.actionButton, styles.retakeButton]}
             onPress={() => setUri(null)}
-            activeOpacity={0.7}
+            disabled={uploading}
           >
             <Feather name="refresh-ccw" size={20} color="#351153" />
             <Text style={styles.retakeButtonText}>Retake</Text>
           </TouchableOpacity>
 
-
-
-
-          <View style={styles.buttonSpacer} />
-
-
-
-
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, uploading && styles.disabledButton]}
             onPress={uploadPhoto}
-            activeOpacity={0.7}
+            disabled={uploading}
           >
             <LinearGradient
-              colors={['#351153', '#4a1a7a']}
+              colors={uploading ? ['#9CA3AF', '#6B7280'] : ['#351153', '#4a1a7a']}
               style={styles.submitButtonGradient}
             >
-              <AntDesign name="check-circle" size={20} color="white" />
-              <Text style={styles.submitButtonText}>Upload</Text>
+              {uploading ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <>
+                  <AntDesign name="check-circle" size={20} color="white" />
+                  <Text style={styles.submitButtonText}>Upload</Text>
+                </>
+              )}
             </LinearGradient>
           </TouchableOpacity>
         </View>
       </LinearGradient>
     </View>
   );
-
-
-
 
   const renderCamera = () => (
     <View style={styles.cameraContainer}>
@@ -258,14 +223,10 @@ const companyCode = employee?.companyCode;
         mode={mode}
         facing={facing}
         enableTorch={flashOn}
-        mute={false}
-        responsiveOrientationWhenOrientationLocked
+        onCameraReady={() => setCameraReady(true)}
       />
 
-
-
-
-      {/* Overlay with face guide */}
+      {/* Face guide overlay */}
       <View style={styles.faceGuideOverlay}>
         <View style={styles.faceGuideContainer}>
           <View style={styles.faceGuide} />
@@ -273,58 +234,18 @@ const companyCode = employee?.companyCode;
         </View>
       </View>
 
-
-
-
       {/* Top controls */}
       <View style={styles.topControlsContainer}>
         <BlurView intensity={30} style={styles.topControlsBlur}>
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={toggleFlash}
-            activeOpacity={0.7}
-          >
-            <Feather
-              name={flashOn ? "zap" : "zap-off"}
-              size={24}
-              color="#351153"
-            />
+          <TouchableOpacity style={styles.controlButton} onPress={toggleFlash}>
+            <Feather name={flashOn ? "zap" : "zap-off"} size={24} color="#351153" />
           </TouchableOpacity>
 
-
-
-
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={toggleMode}
-            activeOpacity={0.7}
-          >
-            <Feather
-              name={mode === "picture" ? "camera" : "video"}
-              size={24}
-              color="#351153"
-            />
-          </TouchableOpacity>
-
-
-
-
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={toggleFacing}
-            activeOpacity={0.7}
-          >
-            <FontAwesome6
-              name="camera-rotate"
-              size={24}
-              color="#351153"
-            />
+          <TouchableOpacity style={styles.controlButton} onPress={toggleFacing}>
+            <FontAwesome6 name="camera-rotate" size={24} color="#351153" />
           </TouchableOpacity>
         </BlurView>
       </View>
-
-
-
 
       {/* Bottom controls */}
       <View style={styles.bottomControlsContainer}>
@@ -333,7 +254,7 @@ const companyCode = employee?.companyCode;
             <TouchableOpacity
               style={styles.shutterButton}
               onPress={takePicture}
-              activeOpacity={0.7}
+              disabled={!cameraReady}
             >
               <LinearGradient
                 colors={['#351153', '#4a1a7a']}
@@ -348,14 +269,8 @@ const companyCode = employee?.companyCode;
     </View>
   );
 
-
-
-
   return uri ? renderPicture() : renderCamera();
 }
-
-
-
 
 const styles = StyleSheet.create({
   // Permission Screen Styles
@@ -423,14 +338,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-
-
-
   // Camera Screen Styles
   cameraContainer: {
     flex: 1,
     position: 'relative',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#000',
   },
   faceGuideOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -443,7 +355,7 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH - 80,
     aspectRatio: 0.7,
     borderWidth: 2,
-    borderColor: 'rgba(53, 17, 83, 0.3)',
+    borderColor: 'rgba(255,255,255,0.5)',
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
@@ -452,16 +364,16 @@ const styles = StyleSheet.create({
     width: '90%',
     height: '90%',
     borderWidth: 1,
-    borderColor: 'rgba(53, 17, 83, 0.2)',
+    borderColor: 'rgba(255,255,255,0.3)',
     borderRadius: 15,
   },
   faceGuideText: {
     position: 'absolute',
     bottom: -40,
-    color: '#351153',
+    color: 'white',
     fontSize: 14,
     fontWeight: '500',
-    textShadowColor: 'rgba(255,255,255,0.5)',
+    textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
@@ -473,7 +385,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   topControlsBlur: {
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 20,
     padding: 10,
     flexDirection: 'row',
@@ -490,7 +402,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   bottomControlsBlur: {
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 30,
     paddingVertical: 20,
     overflow: 'hidden',
@@ -529,9 +441,6 @@ const styles = StyleSheet.create({
     borderColor: '#351153',
   },
 
-
-
-
   // Preview Screen Styles
   previewContainer: {
     flex: 1,
@@ -561,7 +470,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
     marginVertical: 20,
   },
   capturedImage: {
@@ -571,24 +479,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(53, 17, 83, 0.1)',
   },
-  imageOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 15,
-  },
   buttonGroup: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     marginBottom: Platform.OS === 'ios' ? 50 : 30,
-  },
-  buttonSpacer: {
-    width: 20, // Added spacer between buttons
+    gap: 12,
   },
   actionButton: {
     borderRadius: 30,
     overflow: 'hidden',
-    flex: 1, // Make buttons take equal space
+    flex: 1,
   },
   retakeButton: {
     backgroundColor: 'rgba(53, 17, 83, 0.1)',
@@ -620,15 +521,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
+  disabledButton: {
+    opacity: 0.6,
+  },
 });
-
-
-
-
-
-
-
-
-
-
-

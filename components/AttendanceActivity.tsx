@@ -31,6 +31,13 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
   const { employee } = useContext(EmployeeContext);
   const companyCode = employee?.companyCode;
 
+  const formatDateForApi = (date: Date) => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   useEffect(() => {
     const fetchAttendance = async () => {
       if (!companyCode) {
@@ -49,12 +56,12 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
         for (let i = 0; i < 7; i++) {
           const d = new Date(today);
           d.setDate(today.getDate() - i);
-          const formatted = d.toLocaleDateString('en-GB'); // dd/mm/yyyy
+          const formatted = formatDateForApi(d); // dd/MM/yyyy
 
           promises.push(
             axios
               .get<AttendanceData | null>(
-                `https://${companyCode}.zentime.co.in/api/attendance/getByDateAndEmployee`,
+                `http://192.168.1.15:8080/api/attendance/getByDateAndEmployee`,
                 { params: { date: formatted, employeeId } }
               )
               .then((res) =>
@@ -81,7 +88,7 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
           return dateB.getTime() - dateA.getTime();
         });
 
-        console.log('Fetched attendances:', validResults); // Debug log
+        console.log('Fetched attendances:', validResults);
         
         setAttendances(validResults);
       } catch (err: any) {
@@ -126,7 +133,6 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     return 'no-data';
   };
 
-  // Debug: Log current state
   console.log('Component state:', { loading, error, attendancesCount: attendances.length });
 
   if (loading) {
@@ -151,7 +157,7 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    return d.toLocaleDateString('en-GB');
+    return formatDateForApi(d);
   }).reverse();
 
   // Create a map of attendance data by date for easy lookup

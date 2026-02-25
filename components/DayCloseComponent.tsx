@@ -35,7 +35,7 @@ export default function DayCloseComponent({
     setLoading(true);
     try {
       const res = await axios.post(
-        `https://${companyCode}.zentime.co.in/api/attendance/update-day-status`,
+        `http://192.168.1.15:8080/api/attendance/update-day-status`,
         null,
         {
           params: {
@@ -152,4 +152,5 @@ const styles = StyleSheet.create({
 function useContext(EmployeeContext: any): { employee: any; setEmployee: any; } {
   throw new Error("Function not implemented.");
 }
+
 

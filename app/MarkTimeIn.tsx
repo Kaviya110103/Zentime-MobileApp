@@ -133,7 +133,7 @@ export default function MarkTimeInScreen() {
         type: type,
       });
 
-      const response = await fetch(`https://${companyCode}.zentime.co.in/api/attendance/mark-time-in`, {
+      const response = await fetch(`http://192.168.1.15:8080/api/attendance/mark-time-in`, {
         method: "POST",
         body: formData,
         headers: {

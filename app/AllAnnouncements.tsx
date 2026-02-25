@@ -34,7 +34,7 @@ type Announcement = {
 };
 
 const AnnouncementBoard = () => {
-  // const API_URL = 'https://${companyCode}.zentime.co.in/api/announcements';
+  // const API_URL = 'http://192.168.1.15:8080/api/announcements';
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +52,7 @@ const companyCode = employee?.companyCode;
 
   const fetchAnnouncements = async () => {
     try {
-      const response = await axios.get(`https://${companyCode}.zentime.co.in/api/announcements`);
+      const response = await axios.get(`http://192.168.1.15:8080/api/announcements`);
       setAnnouncements(response.data);
       setLoading(false);
       setRefreshing(false);
@@ -448,6 +448,7 @@ const styles = StyleSheet.create({
 
 
 export default AnnouncementBoard;
+
 
 
 

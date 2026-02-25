@@ -79,7 +79,7 @@ const Employee = () => {
       try {
         hasFetched.current = true;
         setLoading(true);
-        const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}`);
+        const response = await fetch(`http://192.168.1.15:8080/api/employees/${employeeId}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -122,7 +122,7 @@ const Employee = () => {
 
     try {
       setSaving(true);
-      const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/update/${employeeId}`, {
+      const response = await fetch(`http://192.168.1.15:8080/api/employees/update/${employeeId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -178,7 +178,7 @@ const Employee = () => {
 
       try {
         const response = await fetch(
-          `https://${companyCode}.zentime.co.in/api/employees/${employeeId}/profile-image`,
+          `http://192.168.1.15:8080/api/employees/${employeeId}/profile-image`,
           {
             method: "PUT",
             headers: {
@@ -193,7 +193,7 @@ const Employee = () => {
 
           // Refresh employee data
           const updatedResponse = await fetch(
-            `https://${companyCode}.zentime.co.in/api/employees/${employeeId}`
+            `http://192.168.1.15:8080/api/employees/${employeeId}`
           );
           if (updatedResponse.ok) {
             const updatedData = await updatedResponse.json();
@@ -805,3 +805,4 @@ const styles = StyleSheet.create({
 });
 
 export default Employee;
+

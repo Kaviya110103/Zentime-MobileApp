@@ -35,7 +35,7 @@ const companyCode = employee?.companyCode;  // 👈 get companyCode here
     try {
       setLoading(true);
       setError(null);
-      const res = await axios.get(`https://${companyCode}.zentime.co.in/api/leaves/employee/${employeeId}`);
+      const res = await axios.get(`http://192.168.1.15:8080/api/leaves/employee/${employeeId}`);
       setLeaves(res.data || []);
     } catch (err: any) {
       setError("Failed to fetch leave/permission data. Please try again later.");

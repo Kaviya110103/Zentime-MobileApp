@@ -76,7 +76,7 @@ export default function ClientRegistration() {
     
     setIsLoading(true);
     try {
-      const response = await fetch('https://${companyCode}.zentime.co.in/api/clients-requests', {
+      const response = await fetch('http://192.168.1.15:8080/api/clients-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

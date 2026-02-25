@@ -112,7 +112,7 @@ const [radius, setRadius] = useState("");
 
 //   setIsSubmitting(true);
 //   try {
-//     const response = await fetch("https://${companyCode}.zentime.co.in/api/employees", {
+//     const response = await fetch("http://192.168.1.15:8080/api/employees", {
 //       method: "POST",
 //       headers: { "Content-Type": "application/json" },
 //       body: JSON.stringify({
@@ -165,7 +165,7 @@ const handleGuestSubmit = async () => {
   setIsSubmitting(true);
   try {
     // 1️⃣ Create Guest
-    const response = await fetch("https://${companyCode}.zentime.co.in/api/employees", {
+    const response = await fetch("http://192.168.1.15:8080/api/employees", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -194,7 +194,7 @@ const handleGuestSubmit = async () => {
     }
 
     // 2️⃣ Create Location
-    const locationResponse = await fetch("https://${companyCode}.zentime.co.in/api/locations", {
+    const locationResponse = await fetch("http://192.168.1.15:8080/api/locations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -251,7 +251,7 @@ const handleGuestSubmit = async () => {
     }
 
     try {
-      const response = await fetch(`https://${companyCode}.zentime.co.in/api/employees/login`, {
+      const response = await fetch(`http://192.168.1.15:8080/api/employees/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: uname, password: pwd }),

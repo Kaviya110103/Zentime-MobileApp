@@ -133,7 +133,7 @@ export default function MarkTimeOutScreen() {
         type: type,
       });
 
-      const response = await fetch(`https://${companyCode}.zentime.co.in/api/attendance/mark-time-out`, {
+      const response = await fetch(`http://192.168.1.15:8080/api/attendance/mark-time-out`, {
         method: "POST",
         body: formData,
         headers: {

@@ -50,7 +50,7 @@ const LocationTest = ({
       if (!clientId) return;
 
       try {
-        const res = await axios.get(`https://${companyCode}.zentime.co.in/api/locations`);
+        const res = await axios.get(`http://192.168.1.15:8080/api/locations`);
         setLocations(res.data);
       } catch (error) {
         console.error(error);
@@ -255,3 +255,4 @@ const styles = StyleSheet.create({
 });
 
 export default LocationTest;
+

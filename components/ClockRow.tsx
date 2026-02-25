@@ -41,7 +41,7 @@ const ClockInfoRow: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     const fetchAttendance = async () => {
       try {
         const res = await axios.get<AttendanceRecord | string>(
-          `https://${companyCode}.zentime.co.in/api/attendance/latest-today-or-yesterday/${employeeId}`
+          `http://192.168.1.15:8080/api/attendance/latest-today-or-yesterday/${employeeId}`
         );
 
         if (typeof res.data === 'string') {
@@ -172,3 +172,4 @@ const styles = StyleSheet.create({
 });
 
 export default ClockInfoRow;
+

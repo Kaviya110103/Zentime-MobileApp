@@ -19,9 +19,11 @@ interface Employee {
   email: string | number;
   id: string;
   name?: string;
-   clientId?: number;
+  clientId?: number;
   clientEmployeeId?: number;
   companyCode?: string;
+  shiftStartTime?: string;
+  shiftEndTime?: string;
 }
 
 interface EmployeeContextType {
@@ -30,7 +32,6 @@ interface EmployeeContextType {
   logout: () => Promise<void>;
 }
 
-// Create the context with default empty implementations
 export const EmployeeContext = createContext<EmployeeContextType>({
   employee: null,
   setEmployee: () => {},

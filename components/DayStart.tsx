@@ -42,7 +42,7 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
     const fetchAttendanceStatus = async () => {
       try {
         const res = await axios.get(
-          `https://${companyCode}.zentime.co.in/api/attendance/latest-today-or-yesterday/${employeeId}`
+          `http://192.168.1.15:8080/api/attendance/latest-today-or-yesterday/${employeeId}`
         );
         const data = res.data;
         if (data?.date) {
@@ -84,7 +84,7 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
     setLoading(true);
     try {
       const res = await axios.put(
-        `https://${companyCode}.zentime.co.in/api/attendance/start-day`,
+        `http://192.168.1.15:8080/api/attendance/start-day`,
         null,
         {
           params: {
@@ -135,7 +135,7 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
     setLoading(true);
     try {
       await axios.post(
-        `https://${companyCode}.zentime.co.in/api/attendance/submit-timeout-reason`,
+        `http://192.168.1.15:8080/api/attendance/submit-timeout-reason`,
         null,
         {
           params: {

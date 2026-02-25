@@ -77,7 +77,7 @@ export default function EmployeeCalendar() {
     
     setIsLoadingMonthly(true);
     try {
-      const url = `https://${companyCode}.zentime.co.in/api/attendance/monthly/${employeeId}/${year}/${String(month).padStart(2, '0')}`;
+      const url = `http://192.168.1.15:8080/api/attendance/monthly/${employeeId}/${year}/${String(month).padStart(2, '0')}`;
       
       const res = await axios.get(url, {
         timeout: 15000,
@@ -149,7 +149,7 @@ export default function EmployeeCalendar() {
     
     try {
       const res = await axios.get(
-        `https://${companyCode}.zentime.co.in/api/attendance/${employeeId}/${day.dateString}`, 
+        `http://192.168.1.15:8080/api/attendance/${employeeId}/${day.dateString}`, 
         {
           timeout: 10000,
           headers: {

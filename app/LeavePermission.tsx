@@ -90,7 +90,7 @@ useEffect(() => {
 
     try {
       await axios.post(
-  `https://${companyCode}.zentime.co.in/api/leaves/create?employeeId=${employeeId}`,
+  `http://192.168.1.15:8080/api/leaves/create?employeeId=${employeeId}`,
   formData
 );
 
@@ -510,3 +510,4 @@ const styles = StyleSheet.create({
   });
 
   export default LeavePermission;
+

@@ -68,7 +68,7 @@ const EmployeeAttendanceReport = () => {
       if (!clientId || !companyCode) return;
       
       try {
-        const res = await axios.get(`https://${companyCode}.zentime.co.in/api/clients/${clientId}`);
+        const res = await axios.get(`http://192.168.1.15:8080/api/clients/${clientId}`);
         setClient(res.data);
       } catch (err) {
         console.error('Error fetching client:', err);
@@ -87,7 +87,7 @@ const EmployeeAttendanceReport = () => {
       if (!employeeId || !companyCode) return;
       
       try {
-        const res = await axios.get(`https://${companyCode}.zentime.co.in/api/employees/${employeeId}`);
+        const res = await axios.get(`http://192.168.1.15:8080/api/employees/${employeeId}`);
         setEmployeeDetails({
           firstName: res.data.firstName || '',
           branch: res.data.branch || '',
@@ -119,7 +119,7 @@ const EmployeeAttendanceReport = () => {
       let year = currentDate.getFullYear();
       
       const response = await axios.get(
-        `https://${companyCode}.zentime.co.in/api/attendance/employee/${employeeId}`,
+        `http://192.168.1.15:8080/api/attendance/employee/${employeeId}`,
         { 
           params: { month, year },
           timeout: 10000 // 10 second timeout

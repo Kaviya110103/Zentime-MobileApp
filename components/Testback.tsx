@@ -29,7 +29,7 @@ const AttendanceFlow: React.FC = () => {
     
     try {
       const { data } = await axios.get<Record>(
-        `https://${companyCode}.zentime.co.in/api/attendance/latest/${employeeId}`
+        `http://192.168.1.15:8080/api/attendance/latest/${employeeId}`
       );
 
       // Validate if the fetched record is for today
@@ -81,20 +81,22 @@ const AttendanceFlow: React.FC = () => {
           const currentHour = now.getHours();
           const currentMinutes = now.getMinutes();
           const currentTimeInMinutes = currentHour * 60 + currentMinutes;
-          const dayOfWeek = now.getDay();
+          const configuredShiftEnd = parseTimeStringToMinutes(employee?.shiftEndTime);
+          let allowedTimeInMinutes = configuredShiftEnd;
 
-          const SUNDAY_ALLOWED_TIME = 14 * 60;
-          const MONDAY_ALLOWED_TIME = 15 * 60 + 30;
-          const WEEKDAY_ALLOWED_TIME = 19 * 60;
+          if (allowedTimeInMinutes == null) {
+            const dayOfWeek = now.getDay();
+            const SUNDAY_ALLOWED_TIME = 14 * 60;
+            const MONDAY_ALLOWED_TIME = 15 * 60 + 30;
+            const WEEKDAY_ALLOWED_TIME = 19 * 60;
 
-          let allowedTimeInMinutes;
-          
-          if (dayOfWeek === 0) {
-            allowedTimeInMinutes = SUNDAY_ALLOWED_TIME;
-          } else if (dayOfWeek === 1) {
-            allowedTimeInMinutes = MONDAY_ALLOWED_TIME;
-          } else {
-            allowedTimeInMinutes = WEEKDAY_ALLOWED_TIME;
+            if (dayOfWeek === 0) {
+              allowedTimeInMinutes = SUNDAY_ALLOWED_TIME;
+            } else if (dayOfWeek === 1) {
+              allowedTimeInMinutes = MONDAY_ALLOWED_TIME;
+            } else {
+              allowedTimeInMinutes = WEEKDAY_ALLOWED_TIME;
+            }
           }
           
           const isAllowedToClockOut = currentTimeInMinutes >= allowedTimeInMinutes;
@@ -174,7 +176,7 @@ const AttendanceFlow: React.FC = () => {
     setLoading(true);
     try {
       const res = await axios.post(
-        `https://${companyCode}.zentime.co.in/api/attendance/update-day-status`,
+        `http://192.168.1.15:8080/api/attendance/update-day-status`,
         null,
         { params: { recordId, dayStatus: "Completed" } }
       );
@@ -284,6 +286,25 @@ function formatDDMMYYYY(d: Date) {
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
+function parseTimeStringToMinutes(timeString?: string | null): number | null {
+  if (!timeString) return null;
+  const parts = timeString.split(":");
+  if (parts.length < 2) return null;
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1]);
+  if (
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
 const styles = StyleSheet.create({
   centerContainer: { 
     flex: 1, 
@@ -321,3 +342,4 @@ const styles = StyleSheet.create({
 });
 
 export default AttendanceFlow;
+

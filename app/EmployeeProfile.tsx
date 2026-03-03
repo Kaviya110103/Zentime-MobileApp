@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmployeeContext } from "../context/EmployeeContext";
+import { buildApiUrl } from "../lib/api";
 
 const { width, height } = Dimensions.get("window");
 const isDesktop = width >= 768;
@@ -57,11 +58,18 @@ const Employee = () => {
   const { employee, setEmployee, logout } = useContext(EmployeeContext);
   const companyCode = employee?.companyCode;
   const employeeId = employee?.id;
+  const clientId = employee?.clientId;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   
   // Prevent multiple fetches
   const hasFetched = useRef(false);
+
+  useEffect(() => {
+    if (!employeeId) {
+      router.replace("/EmployeeLogin");
+    }
+  }, [employeeId, router]);
 
   // Fetch employee data on initial load - FIXED: Only fetch if data is missing
   useEffect(() => {
@@ -79,7 +87,7 @@ const Employee = () => {
       try {
         hasFetched.current = true;
         setLoading(true);
-        const response = await fetch(`http://192.168.1.15:8080/api/employees/${employeeId}`);
+        const response = await fetch(buildApiUrl(`/api/employees/${employeeId}`, { clientId }));
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -97,11 +105,11 @@ const Employee = () => {
     };
 
     fetchEmployeeData();
-  }, [employeeId]); // REMOVED: companyCode, setEmployee from dependencies to prevent re-fetching
+  }, [employeeId, clientId]); // Keep scoped to employee identity/context
 
   const handleLogout = async () => {
     await logout();
-    router.push("/");
+    router.replace("/EmployeeLogin");
   };
 
   const handleInputChange = useCallback((field: keyof Employee, value: string) => {
@@ -122,7 +130,7 @@ const Employee = () => {
 
     try {
       setSaving(true);
-      const response = await fetch(`http://192.168.1.15:8080/api/employees/update/${employeeId}`, {
+      const response = await fetch(buildApiUrl(`/api/employees/update/${employeeId}`, { clientId }), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -178,7 +186,7 @@ const Employee = () => {
 
       try {
         const response = await fetch(
-          `http://192.168.1.15:8080/api/employees/${employeeId}/profile-image`,
+          buildApiUrl(`/api/employees/${employeeId}/profile-image`, { clientId }),
           {
             method: "PUT",
             headers: {
@@ -193,7 +201,7 @@ const Employee = () => {
 
           // Refresh employee data
           const updatedResponse = await fetch(
-            `http://192.168.1.15:8080/api/employees/${employeeId}`
+            buildApiUrl(`/api/employees/${employeeId}`, { clientId })
           );
           if (updatedResponse.ok) {
             const updatedData = await updatedResponse.json();
@@ -208,7 +216,7 @@ const Employee = () => {
         alert("An error occurred during upload.");
       }
     }
-  }, [employeeId, companyCode, setEmployee]);
+  }, [employeeId, clientId, companyCode, setEmployee]);
 
   if (loading) {
     return (

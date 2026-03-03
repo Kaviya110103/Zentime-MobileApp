@@ -3,6 +3,7 @@ import axios from 'axios';
 import React, { useContext, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { EmployeeContext } from '../context/EmployeeContext';
+import { buildApiUrl } from '../lib/api';
 
 interface AttendanceRecord {
   timeIn: string | null;
@@ -18,8 +19,9 @@ type EmployeeInfoProps = {
 const ClockInfoRow: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const {  employee, setEmployee } = useContext(EmployeeContext);
+  const { employee } = useContext(EmployeeContext);
   const companyCode = employee?.companyCode;
+  const clientId = employee?.clientId;
   const isToday = (dateString: string): boolean => {
     const [day, month, year] = dateString.split('/').map(Number);
     const today = new Date();
@@ -41,10 +43,10 @@ const ClockInfoRow: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     const fetchAttendance = async () => {
       try {
         const res = await axios.get<AttendanceRecord | string>(
-          `http://192.168.1.15:8080/api/attendance/latest-today-or-yesterday/${employeeId}`
+          buildApiUrl(`/api/attendance/latest-today-or-yesterday/${employeeId}`, { clientId })
         );
 
-        if (typeof res.data === 'string') {
+        if (typeof res.data === 'string' || (res.data as any)?.found === false) {
           setAttendance(null);
         } else {
           setAttendance(res.data);
@@ -57,7 +59,7 @@ const ClockInfoRow: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     };
 
     fetchAttendance();
-  }, [employeeId]);
+  }, [employeeId, clientId]);
 
   if (loading) {
     return <ActivityIndicator size="large" color="#0000ff" />;

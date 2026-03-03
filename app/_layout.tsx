@@ -22,6 +22,7 @@ export default function Layout() {
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="EmployeeLogin" options={{ headerShown: false }} />
+        <Stack.Screen name="WelcomeBack" options={{ headerShown: false }} />
         <Stack.Screen name="MarkAttendance" options={{ headerShown: false }} />
         <Stack.Screen name="Calendarprinting" options={{ headerShown: false }} />
         <Stack.Screen name="EmployeeProfile" options={{ headerShown: false }} />

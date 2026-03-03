@@ -8,7 +8,7 @@ export default function Index() {
   const textAnim = useRef(new Animated.Value(0)).current;
   const colorScheme = useColorScheme();
   const router = useRouter();
-  const { employee } = useContext(EmployeeContext);
+  const { employee, authReady } = useContext(EmployeeContext);
   // useEffect(() => {
   //   const backAction = () => {
   //     Alert.alert('Hold on!', 'Are you sure you want to exit the app?', [
@@ -36,17 +36,21 @@ export default function Index() {
       }).start();
     });
 
+    if (!authReady) {
+      return;
+    }
+
     // Navigate after animation completes
     const timer = setTimeout(() => {
       if (!employee) {
-        router.push('/Walkthrough'); // user not logged in → show walkthrough
+        router.replace('/EmployeeLogin');
       } else {
-        router.push('/EmployeeLogin'); // or your main screen
+        router.replace('/WelcomeBack');
       }
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [employee]);
+  }, [employee, authReady]);
 
   const isDarkMode = colorScheme === 'dark';
 

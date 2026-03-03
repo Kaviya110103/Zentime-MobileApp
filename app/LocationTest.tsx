@@ -12,6 +12,7 @@ import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import axios from 'axios';
 import { EmployeeContext } from '../context/EmployeeContext';
+import { buildApiUrl, withClientId } from '../lib/api';
 
 type LocationDto = {
   id: number;
@@ -25,6 +26,7 @@ type LocationDto = {
 type Props = {
   onStatusChange?: (status: 'Active' | 'Inactive' | 'Unknown') => void;
   onAddressChange?: (address: string | null) => void;
+  onCoordsChange?: (coords: { latitude: number; longitude: number } | null) => void;
   inModal?: boolean;
   showOnlyStatus?: boolean;
 };
@@ -32,6 +34,7 @@ type Props = {
 const LocationTest = ({
   onStatusChange,
   onAddressChange,
+  onCoordsChange,
   inModal = false,
   showOnlyStatus = false,
 }: Props) => {
@@ -50,7 +53,10 @@ const LocationTest = ({
       if (!clientId) return;
 
       try {
-        const res = await axios.get(`http://192.168.1.15:8080/api/locations`);
+        const res = await axios.get(
+          buildApiUrl('/api/locations'),
+          { params: withClientId({}, clientId) }
+        );
         setLocations(res.data);
       } catch (error) {
         console.error(error);
@@ -84,6 +90,10 @@ const LocationTest = ({
           async (loc) => {
             const coords = loc.coords;
             setUserLocation(coords);
+            onCoordsChange?.({
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+            });
 
             // Check distance to each geofence
             let found = false;
@@ -124,6 +134,7 @@ const LocationTest = ({
       } catch (err) {
         console.error(err);
         Alert.alert('Location not available. Please try again.');
+        onCoordsChange?.(null);
       }
     })();
 

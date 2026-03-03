@@ -16,6 +16,7 @@ import {
 import LocationTest from '../app/LocationTest';
 import { isToday, parse } from "date-fns";
 import { EmployeeContext } from "../context/EmployeeContext";
+import { buildApiUrl, withClientId } from "../lib/api";
 
 interface StartDayProps {
   employeeId: number;
@@ -35,16 +36,24 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
   const [timeoutReason, setTimeoutReason] = useState('');
   const [missedTimeoutRecordId, setMissedTimeoutRecordId] = useState<number | null>(null);
   const [pendingLocation, setPendingLocation] = useState<string | null>(null);
+  const [locationStatus, setLocationStatus] = useState<'Active' | 'Inactive' | 'Unknown'>('Unknown');
+  const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [showLocationRequestModal, setShowLocationRequestModal] = useState(false);
+  const [locationRequestReason, setLocationRequestReason] = useState('');
   const { employee } = useContext(EmployeeContext);
   const companyCode = employee?.companyCode;
+  const clientId = employee?.clientId;
 
   useEffect(() => {
     const fetchAttendanceStatus = async () => {
       try {
         const res = await axios.get(
-          `http://192.168.1.15:8080/api/attendance/latest-today-or-yesterday/${employeeId}`
+          buildApiUrl(`/api/attendance/latest-today-or-yesterday/${employeeId}`, { clientId })
         );
         const data = res.data;
+        if (data?.found === false) {
+          return;
+        }
         if (data?.date) {
           const parsedDate = parse(data.date, 'dd/MM/yyyy', new Date());
           const today = isToday(parsedDate);
@@ -56,8 +65,10 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
             onDone?.();
           }
         }
-      } catch (error) {
-        console.log("No attendance record found");
+      } catch (error: any) {
+        if (error?.response?.status !== 404) {
+          console.log("Attendance fetch failed", error?.message);
+        }
       } finally {
         setInitialLoading(false);
       }
@@ -84,13 +95,15 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
     setLoading(true);
     try {
       const res = await axios.put(
-        `http://192.168.1.15:8080/api/attendance/start-day`,
+        buildApiUrl(`/api/attendance/start-day`),
         null,
         {
-          params: {
+          params: withClientId({
             employeeId,
-            location: locationOverride ?? currentAddress
-          }
+            location: locationOverride ?? currentAddress,
+            latitude: currentCoords?.latitude,
+            longitude: currentCoords?.longitude,
+          }, clientId)
         }
       );
       
@@ -135,13 +148,13 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
     setLoading(true);
     try {
       await axios.post(
-        `http://192.168.1.15:8080/api/attendance/submit-timeout-reason`,
+        buildApiUrl(`/api/attendance/submit-timeout-reason`),
         null,
         {
-          params: {
+          params: withClientId({
             recordId: missedTimeoutRecordId,
-            reason: timeoutReason.trim()
-          }
+            reason: timeoutReason.trim(),
+          }, clientId)
         }
       );
       
@@ -163,7 +176,52 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
   };
 
   const handleLocationStatus = (status: 'Active' | 'Inactive' | 'Unknown') => {
+    setLocationStatus(status);
     setCanStartDay(status === 'Active');
+    if (status === 'Inactive') {
+      setShowLocationRequestModal(true);
+    } else if (status === 'Active') {
+      setShowLocationRequestModal(false);
+    }
+  };
+
+  const submitLocationRequest = async () => {
+    if (!currentCoords) {
+      Alert.alert("Error", "Current GPS location is required.");
+      return;
+    }
+    if (!locationRequestReason.trim()) {
+      Alert.alert("Error", "Please provide a reason.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(
+        buildApiUrl(`/api/location-requests/submit`, { clientId }),
+        {
+          employeeId,
+          latitude: currentCoords.latitude,
+          longitude: currentCoords.longitude,
+          currentAddress,
+          reason: locationRequestReason.trim(),
+        }
+      );
+
+      Alert.alert("Success", response?.data?.message || "Location request submitted and time-in recorded.");
+      setShowLocationRequestModal(false);
+      setShowLocationModal(false);
+      setLocationRequestReason('');
+      setDayStarted(true);
+      setTimeout(() => {
+        onDone?.();
+      }, 100);
+    } catch (err: any) {
+      const message = err?.response?.data?.message || err?.message || "Failed to submit location request.";
+      Alert.alert("Error", message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (initialLoading) {
@@ -228,6 +286,7 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
             <LocationTest
               onStatusChange={handleLocationStatus}
               onAddressChange={setCurrentAddress}
+              onCoordsChange={setCurrentCoords}
               inModal
             />
           </View>
@@ -244,8 +303,53 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
                 <Text style={styles.buttonText}>Confirm Start Day</Text>
               )}
             </TouchableOpacity>
+            {locationStatus === 'Inactive' && (
+              <Text style={styles.inactiveHint}>
+                Status is Inactive. Submit a location request to continue.
+              </Text>
+            )}
           </View>
         </SafeAreaView>
+      </Modal>
+
+      {/* Location Request Modal for Inactive status */}
+      <Modal visible={showLocationRequestModal} animationType="slide" transparent>
+        <View style={styles.overlayContainer}>
+          <View style={styles.requestModalCard}>
+            <Text style={styles.modalTitle}>Location Request</Text>
+            <Text style={styles.modalSubtitle}>
+              You are outside assigned branch location. Submit reason to mark time-in and notify admin.
+            </Text>
+            <Text style={styles.locationPreview}>
+              GPS: {currentCoords ? `${currentCoords.latitude.toFixed(6)}, ${currentCoords.longitude.toFixed(6)}` : 'Detecting...'}
+            </Text>
+            <TextInput
+              style={styles.reasonInput}
+              multiline
+              numberOfLines={4}
+              placeholder="Reason for marking attendance from different location"
+              value={locationRequestReason}
+              onChangeText={setLocationRequestReason}
+              editable={!loading}
+            />
+            <View style={styles.requestActions}>
+              <TouchableOpacity
+                style={[styles.cancelRequestButton]}
+                onPress={() => setShowLocationRequestModal(false)}
+                disabled={loading}
+              >
+                <Text style={styles.cancelRequestButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmButton, (!locationRequestReason.trim() || !currentCoords || loading) && styles.disabledButton]}
+                onPress={submitLocationRequest}
+                disabled={!locationRequestReason.trim() || !currentCoords || loading}
+              >
+                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Submit</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Timeout Reason Modal */}
@@ -404,6 +508,44 @@ const styles = StyleSheet.create({
   buttonText: {
     color: 'white',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  inactiveHint: {
+    marginTop: 10,
+    textAlign: 'center',
+    color: '#b91c1c',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  overlayContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  requestModalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+  },
+  locationPreview: {
+    fontSize: 13,
+    color: '#374151',
+    marginBottom: 10,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  cancelRequestButton: {
+    backgroundColor: '#E5E7EB',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginRight: 10,
+  },
+  cancelRequestButtonText: {
+    color: '#111827',
     fontWeight: '600',
   },
 });

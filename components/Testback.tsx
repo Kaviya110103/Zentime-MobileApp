@@ -5,6 +5,7 @@ import axios from "axios";
 import { router } from "expo-router";
 import React, { useContext, useEffect, useState, useCallback } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import { buildApiUrl, withClientId } from "../lib/api";
 
 const AttendanceFlow: React.FC = () => {
   const { employee } = useContext(EmployeeContext);
@@ -29,8 +30,14 @@ const AttendanceFlow: React.FC = () => {
     
     try {
       const { data } = await axios.get<Record>(
-        `http://192.168.1.15:8080/api/attendance/latest/${employeeId}`
+        buildApiUrl(`/api/attendance/latest/${employeeId}`, { clientId: employee?.clientId })
       );
+
+      if ((data as any)?.found === false) {
+        setRecord(null);
+        setView("start");
+        return;
+      }
 
       // Validate if the fetched record is for today
       if (data.date === today) {
@@ -52,7 +59,9 @@ const AttendanceFlow: React.FC = () => {
         setView("start");
       }
     } catch (error) {
-      console.log("No active record found:", error);
+      if ((error as any)?.response?.status !== 404) {
+        console.log("No active record found:", error);
+      }
       setRecord(null);
       setView("start");
     } finally {
@@ -175,10 +184,25 @@ const AttendanceFlow: React.FC = () => {
   const handleDayClose = async (recordId: number) => {
     setLoading(true);
     try {
+      const recordCheck = await axios.get(
+        buildApiUrl(`/api/attendance/check-record`),
+        {
+          params: withClientId(
+            { employeeId: employee?.id, recordId },
+            employee?.clientId
+          ),
+        }
+      );
+      if (!recordCheck?.data) {
+        Alert.alert("Error", "Attendance record is no longer valid. Please refresh.");
+        await fetchRecord(true);
+        return;
+      }
+
       const res = await axios.post(
-        `http://192.168.1.15:8080/api/attendance/update-day-status`,
+        buildApiUrl(`/api/attendance/update-day-status`),
         null,
-        { params: { recordId, dayStatus: "Completed" } }
+        { params: withClientId({ recordId, dayStatus: "Completed" }, employee?.clientId) }
       );
       
       Alert.alert("Success", "Day closed successfully!");

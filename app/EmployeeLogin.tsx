@@ -1,12 +1,10 @@
 import { EmployeeContext } from "../context/EmployeeContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Link, useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     BackHandler,
-    Button,
     ImageBackground,
     StyleSheet,
     Text,
@@ -15,11 +13,9 @@ import {
     View,
     Modal,
     ScrollView,
-    KeyboardAvoidingView,
-    Platform
+    Platform,
 } from "react-native";
-import * as Crypto from "expo-crypto";
-import { navigate } from "expo-router/build/global-state/routing";
+import { buildApiUrl } from "../lib/api";
 
 const EmployeeLogin = () => {
   const [username, setUsername] = useState("");
@@ -27,9 +23,7 @@ const EmployeeLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [messageColor, setMessageColor] = useState("#4CAF50");
-  const [autoLoggingIn, setAutoLoggingIn] = useState(false);
-  const [hasCredentials, setHasCredentials] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [noCredentialChecked, setNoCredentialChecked] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
@@ -40,7 +34,6 @@ const EmployeeLogin = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [companyCode, setCompanyCode] = useState("");
-  const [clintId, setClientId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 const [latitude, setLatitude] = useState("");
 const [longitude, setLongitude] = useState("");
@@ -48,7 +41,7 @@ const [address, setAddress] = useState("");
 const [radius, setRadius] = useState("");
 
   const router = useRouter();
-  const { employee, setEmployee } = useContext(EmployeeContext);
+  const { employee, setEmployee, logout } = useContext(EmployeeContext);
   
   useFocusEffect(
     useCallback(() => {
@@ -74,36 +67,9 @@ const [radius, setRadius] = useState("");
     }, [])
   );
   
-  // Check for existing credentials
   useEffect(() => {
-    const checkCredentials = async () => {
-      const creds = await AsyncStorage.getItem("employeeCredentials");
-      if (creds) {
-        setHasCredentials(true);
-        const { username, password } = JSON.parse(creds);
-        setUsername(username);
-        setPassword(password);
-      }
-      setIsLoading(false);
-    };
-    checkCredentials();
+    setIsLoading(false);
   }, []);
-  
-  // Auto-login if credentials exist
-  useEffect(() => {
-    if (hasCredentials && !employee) {
-      const autoLogin = async () => {
-        const creds = await AsyncStorage.getItem("employeeCredentials");
-        if (creds) {
-          const { username, password } = JSON.parse(creds);
-          setAutoLoggingIn(true);
-          await handleLogin(username, password, true);
-          setAutoLoggingIn(false);
-        }
-      };
-      autoLogin();
-    }
-  }, [hasCredentials, employee]);
 // const handleGuestSubmit = async () => {
 //   if (!firstName || !lastName || !newUsername || !newPassword || !email) {
 //     Alert.alert("Error", "Please fill all fields");
@@ -112,7 +78,7 @@ const [radius, setRadius] = useState("");
 
 //   setIsSubmitting(true);
 //   try {
-//     const response = await fetch("http://192.168.1.15:8080/api/employees", {
+//     const response = await fetch("http://192.168.1.32:8080/api/employees", {
 //       method: "POST",
 //       headers: { "Content-Type": "application/json" },
 //       body: JSON.stringify({
@@ -139,7 +105,7 @@ const [radius, setRadius] = useState("");
 //       Alert.alert("Success", "Guest account created successfully");
 //       setShowGuestModal(false);
 
-//       // Clear form fields
+//       // Clear form fields  
 //       setFirstName("");
 //       setLastName("");
 //       setNewUsername("");
@@ -165,7 +131,7 @@ const handleGuestSubmit = async () => {
   setIsSubmitting(true);
   try {
     // 1️⃣ Create Guest
-    const response = await fetch("http://192.168.1.15:8080/api/employees", {
+    const response = await fetch(buildApiUrl("/api/employees"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -194,7 +160,7 @@ const handleGuestSubmit = async () => {
     }
 
     // 2️⃣ Create Location
-    const locationResponse = await fetch("http://192.168.1.15:8080/api/locations", {
+    const locationResponse = await fetch(buildApiUrl("/api/locations"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -251,10 +217,10 @@ const handleGuestSubmit = async () => {
     }
 
     try {
-      const response = await fetch(`http://192.168.1.15:8080/api/employees/login`, {
+      const response = await fetch(buildApiUrl(`/api/employees/login`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: uname, password: pwd }),
+        body: JSON.stringify({ username: uname, password: pwd, companyCode }),
       });
 
       const data = await response.json();
@@ -262,22 +228,10 @@ const handleGuestSubmit = async () => {
 
       if (response.ok) {
         if (data && data.id) {
-          setEmployee(data);
-
-          // Optionally encrypt the password before saving
-          const encryptedPwd = await Crypto.digestStringAsync(
-            Crypto.CryptoDigestAlgorithm.SHA256,
-            pwd
-          );
-
-          await AsyncStorage.setItem(
-            "employeeCredentials",
-            JSON.stringify({ username: uname, password: encryptedPwd })
-          );
-
-          setHasCredentials(true);
+          await setEmployee(data);
           setMessage("Login successful!");
           setMessageColor("#4CAF50");
+          router.replace("/WelcomeBack");
         } else {
           if (!silent) showInvalidCredentialsAlert();
         }
@@ -308,21 +262,19 @@ const handleGuestSubmit = async () => {
     );
   };
 
-  const handleLogout = async () => {
-    await AsyncStorage.removeItem("employeeCredentials");
-    setEmployee(null);
-    navigate("/");
-    setHasCredentials(false);
-    setUsername("");
-    setPassword("");
-  };
-
   const toggleShowPassword = () => {
     setShowPassword(!showPassword);
   };
 
   const toggleShowNewPassword = () => {
     setShowNewPassword(!showNewPassword);
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setUsername("");
+    setPassword("");
+    setMessage("");
   };
 
   if (isLoading) {
@@ -333,38 +285,6 @@ const handleGuestSubmit = async () => {
     );
   }
 
-  if (hasCredentials && employee) {
-    return (
-        <ImageBackground
-     source={require("../assets/images/bg1.png")}
-      style={styles.background}
-      resizeMode="cover">
-      <View style={[styles.container, styles.whiteBackground]}>
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={styles.welcomeBox}>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.welcomeName}>{employee.name || employee.username}!</Text>
-            
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={() => router.push("/MarkAttendance")}
-            >
-              <Text style={styles.buttonText}>Go to Dashboard</Text>
-            </TouchableOpacity>
-              
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={handleLogout}
-            >
-              <Text style={styles.secondaryButtonText}>Not you? Logout</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
-      </ImageBackground>
-    );
-  }
-
   return (
     <ImageBackground
      source={require("../assets/images/bg1.png")}
@@ -372,7 +292,26 @@ const handleGuestSubmit = async () => {
       resizeMode="cover">
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.heading}>Employee Login</Text>
-
+        {employee ? (
+          <View style={styles.welcomeBox}>
+            <Text style={styles.welcomeText}>Welcome back,</Text>
+            <Text style={styles.welcomeName}>
+              {employee.name || employee.username || "Employee"}
+            </Text>
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={() => router.replace("/MarkAttendance")}
+            >
+              <Text style={styles.buttonText}>Go to Dashboard</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={handleLogout}
+            >
+              <Text style={styles.secondaryButtonText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
         <View style={styles.loginBox}>
           <Text style={styles.label}>Username*</Text>
           <TextInput
@@ -418,13 +357,8 @@ const handleGuestSubmit = async () => {
           <TouchableOpacity
             style={styles.loginButton}
             onPress={() => handleLogin()}
-            disabled={autoLoggingIn}
           >
-            {autoLoggingIn ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text style={styles.buttonText}>LOGIN</Text>
-            )}
+            <Text style={styles.buttonText}>LOGIN</Text>
           </TouchableOpacity>
           
           <View style={styles.checkboxContainer}>
@@ -448,8 +382,9 @@ const handleGuestSubmit = async () => {
             </Text>
           ) : null}
         </View>
+        )}
         
-        <View style={styles.bottomButtonsContainer}>
+        {!employee && <View style={styles.bottomButtonsContainer}>
           <TouchableOpacity
             style={styles.guestButton}
             onPress={() => setShowGuestModal(true)}
@@ -463,7 +398,7 @@ const handleGuestSubmit = async () => {
           >
             <Text style={styles.clientRegButtonText}>Client Registration</Text>
           </TouchableOpacity>
-        </View>
+        </View>}
       </ScrollView>
 
       {/* Contact Support Modal */}

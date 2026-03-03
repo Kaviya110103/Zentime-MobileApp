@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,12 @@ const MarkAttendance = () => {
   const companyCode = employee?.companyCode;
   const employeeId = employee?.id;
   const [currentAddress, setCurrentAddress] = useState('');
+
+  useEffect(() => {
+    if (!employeeId) {
+      router.replace('/EmployeeLogin');
+    }
+  }, [employeeId]);
 
   return (
     <View style={styles.mainContainer}>
@@ -76,10 +82,13 @@ const MarkAttendance = () => {
                     if (label === 'SwapSchedule') {
                       router.push({
                         pathname: '/EmployeeCalendar',
-                        params: { employeeId: employeeId.toString() }  //http://192.168.1.15:8080    http://192.168.1.16:8080
+                        params: { employeeId: employeeId.toString() }  //http://192.168.1.32:8080    http://192.168.1.16:8080
                       });
                     } else if (label === 'Status') {
-router.push('/EmployeeLeavePermission?employeeId=${ employeeId}');
+                      router.push({
+                        pathname: '/EmployeeLeavePermission',
+                        params: { employeeId: String(employeeId) },
+                      });
                     } else if (label === 'Report') {
                       router.push({
                         pathname: '/Calendarprinting',

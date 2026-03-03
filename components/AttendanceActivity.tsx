@@ -9,6 +9,7 @@ import {
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
 import { EmployeeContext } from '../context/EmployeeContext';
+import { buildApiUrl, withClientId } from '../lib/api';
 
 // Type definitions
 type FeatherIconName = React.ComponentProps<typeof Feather>['name'];
@@ -21,7 +22,7 @@ type AttendanceData = {
 };
 
 type EmployeeInfoProps = {
-  employeeId: string;
+  employeeId?: string | number;
 };
 
 const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
@@ -30,6 +31,7 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
   const [attendances, setAttendances] = useState<AttendanceData[]>([]);
   const { employee } = useContext(EmployeeContext);
   const companyCode = employee?.companyCode;
+  const clientId = employee?.clientId;
 
   const formatDateForApi = (date: Date) => {
     const day = String(date.getDate()).padStart(2, '0');
@@ -40,8 +42,16 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
 
   useEffect(() => {
     const fetchAttendance = async () => {
+      if (!employeeId || !clientId) {
+        setAttendances([]);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
       if (!companyCode) {
-        setError('Company code not found');
+        setAttendances([]);
+        setError(null);
         setLoading(false);
         return;
       }
@@ -61,14 +71,17 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
           promises.push(
             axios
               .get<AttendanceData | null>(
-                `http://192.168.1.15:8080/api/attendance/getByDateAndEmployee`,
-                { params: { date: formatted, employeeId } }
+                buildApiUrl('/api/attendance/getByDateAndEmployee'),
+                { params: withClientId({ date: formatted, employeeId }, clientId) }
               )
-              .then((res) =>
-                res.data ? { ...res.data, date: formatted } : null
-              )
+              .then((res) => {
+                if (!res.data || (res.data as any).found === false) return null;
+                return { ...res.data, date: formatted };
+              })
               .catch((err) => {
-                console.log(`Error fetching ${formatted}:`, err.message);
+                if (err?.response?.status !== 404) {
+                  console.log(`Error fetching ${formatted}:`, err.message);
+                }
                 return null;
               })
           );
@@ -100,7 +113,7 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     };
 
     fetchAttendance();
-  }, [employeeId, companyCode]);
+  }, [employeeId, companyCode, clientId]);
 
   // getDayName is defined here but not used - keeping for potential future use
   const getShortDayName = (dateStr: string) => {

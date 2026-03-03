@@ -21,6 +21,7 @@ import DropDownPicker from "react-native-dropdown-picker";
 import BottomNavBar from "../components/BottomNavBar";
 import { router, useLocalSearchParams, useRouter } from 'expo-router';
 import { EmployeeContext } from "../context/EmployeeContext";
+import { buildApiUrl, withClientId } from "../lib/api";
 
 const LeavePermission = () => {
 
@@ -90,9 +91,12 @@ useEffect(() => {
 
     try {
       await axios.post(
-  `http://192.168.1.15:8080/api/leaves/create?employeeId=${employeeId}`,
-  formData
-);
+        buildApiUrl(`/api/leaves/create`),
+        formData,
+        {
+          params: withClientId({ employeeId }, employee?.clientId),
+        }
+      );
 
       Alert.alert(
         "Success! 🎉",

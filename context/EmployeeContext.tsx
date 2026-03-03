@@ -28,23 +28,30 @@ interface Employee {
 
 interface EmployeeContextType {
   employee: Employee | null;
+  authReady: boolean;
   setEmployee: (emp: Employee | null) => void;
   logout: () => Promise<void>;
 }
 
 export const EmployeeContext = createContext<EmployeeContextType>({
   employee: null,
+  authReady: false,
   setEmployee: () => {},
   logout: async () => {},
 });
 
 export const EmployeeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [employee, setEmployeeState] = useState<Employee | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     const loadEmployee = async () => {
-      const stored = await AsyncStorage.getItem('employee');
-      if (stored) setEmployeeState(JSON.parse(stored));
+      try {
+        const stored = await AsyncStorage.getItem('employee');
+        if (stored) setEmployeeState(JSON.parse(stored));
+      } finally {
+        setAuthReady(true);
+      }
     };
     loadEmployee();
   }, []);
@@ -59,13 +66,16 @@ export const EmployeeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
  const logout = async () => {
-  await AsyncStorage.removeItem('employee');
-  await AsyncStorage.removeItem('employeeCredentials'); // <-- Add this line
   setEmployeeState(null);
+  try {
+    await AsyncStorage.multiRemove(['employee', 'employeeCredentials']);
+  } catch (error) {
+    console.warn('Failed to clear auth storage on logout:', error);
+  }
 };
 
   return (
-    <EmployeeContext.Provider value={{ employee, setEmployee, logout }}>
+    <EmployeeContext.Provider value={{ employee, authReady, setEmployee, logout }}>
       {children}
     </EmployeeContext.Provider>
   );

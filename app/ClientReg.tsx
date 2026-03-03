@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { buildApiUrl } from '../lib/api';
 
 interface FormState {
   clientName: string;
@@ -76,7 +77,7 @@ export default function ClientRegistration() {
     
     setIsLoading(true);
     try {
-      const response = await fetch('http://192.168.1.15:8080/api/clients-requests', {
+      const response = await fetch(buildApiUrl('/api/clients-requests'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

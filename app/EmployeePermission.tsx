@@ -26,6 +26,7 @@ const { width } = Dimensions.get('window');
 //   const { employeeId } = route.params;
 import { EmployeeContext } from "../context/EmployeeContext";
 import { router, useLocalSearchParams } from 'expo-router';
+import { buildApiUrl, withClientId } from "../lib/api";
 
 const EmployeePermission = () => {
    const { recordId } = useLocalSearchParams();
@@ -85,8 +86,11 @@ const companyCode = employee?.companyCode;
 
    try {
   await axios.post(
-    `http://192.168.1.15:8080/api/leaves/create?employeeId=${employeeId}`,
-    formData
+    buildApiUrl(`/api/leaves/create`),
+    formData,
+    {
+      params: withClientId({ employeeId }, employee?.clientId),
+    }
   );
 
   Alert.alert(

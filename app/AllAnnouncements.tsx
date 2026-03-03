@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { Avatar, Button, Card, IconButton } from 'react-native-paper';
 import { EmployeeContext } from '../context/EmployeeContext';
+import { buildApiUrl, withClientId } from '../lib/api';
 
 
 
@@ -34,7 +35,7 @@ type Announcement = {
 };
 
 const AnnouncementBoard = () => {
-  // const API_URL = 'http://192.168.1.15:8080/api/announcements';
+  // const API_URL = 'http://192.168.1.32:8080/api/announcements';
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +53,10 @@ const companyCode = employee?.companyCode;
 
   const fetchAnnouncements = async () => {
     try {
-      const response = await axios.get(`http://192.168.1.15:8080/api/announcements`);
+      const response = await axios.get(
+        buildApiUrl(`/api/announcements`),
+        { params: withClientId({}, employee?.clientId) }
+      );
       setAnnouncements(response.data);
       setLoading(false);
       setRefreshing(false);

@@ -27,7 +27,7 @@ const BottomNavItem: React.FC<BottomNavItemProps> = ({ icon, label, active, onPr
 
 const BottomNavigation: React.FC<BottomNavBarProps> = ({ activeTab }) => {
   const router = useRouter();
-  const { employee } = useContext(EmployeeContext); // ✅ Get employee
+  const { employee, logout } = useContext(EmployeeContext); // ✅ Get employee
 
   const employeeId = employee?.id;
 
@@ -75,7 +75,10 @@ const BottomNavigation: React.FC<BottomNavBarProps> = ({ activeTab }) => {
         icon={<FontAwesome5 name="sign-out-alt" />}
         label="Log out"
         active={false}
-        onPress={() => router.replace('/')}
+        onPress={async () => {
+          await logout();
+          router.replace('/EmployeeLogin');
+        }}
       />
     </View>
   );

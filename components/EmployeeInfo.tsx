@@ -76,7 +76,7 @@
 //     const fetchEmployee = async () => {
 //       try {
 //         const res = await axios.get<Employee>(
-//           `http://192.168.1.15:8080/api/employees/${employeeId}`
+//           `http://192.168.1.32:8080/api/employees/${employeeId}`
 //         );
 //         setEmployee(res.data);
 //       } catch (err) {
@@ -123,7 +123,7 @@
 //     const checkAttendanceStatus = async () => {
 //       try {
 //         const response = await axios.get(
-//           `http://192.168.1.15:8080/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
+//           `http://192.168.1.32:8080/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
 //         );
 //         const status = response.data;
 //         setAttendanceStatus(status);
@@ -148,7 +148,7 @@
 // const handleBellPress = async () => {
 //   try {
 //     const response = await axios.get(
-//       `http://192.168.1.15:8080/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
+//       `http://192.168.1.32:8080/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
 //     );
 //     const status = response.data;
 
@@ -260,6 +260,7 @@ import {
     View,
 } from 'react-native';
 import { EmployeeContext } from '../context/EmployeeContext';
+import { buildApiUrl, withClientId } from '../lib/api';
 
 interface Employee {
   position: ReactNode;
@@ -270,7 +271,7 @@ interface Employee {
 }
 
 type EmployeeInfoProps = {
-  employeeId: string;
+  employeeId?: string | number;
 };
 
 const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
@@ -282,13 +283,20 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
   const [attendanceStatus, setAttendanceStatus] = useState<string>('');
   const [showNotification, setShowNotification] = useState<boolean>(false);
   const router = useRouter();
-  const {  employee, setEmployee } = useContext(EmployeeContext);
+  const { employee } = useContext(EmployeeContext);
   const companyCode = employee?.companyCode;
+  const clientId = employee?.clientId;
   useEffect(() => {
     const fetchEmployee = async () => {
+      if (!employeeId || !clientId) {
+        setEmployees(null);
+        setLoading(false);
+        return;
+      }
+
       try {
         const res = await axios.get<Employee>(
-          `http://192.168.1.15:8080/api/employees/${employeeId}`
+          buildApiUrl(`/api/employees/${employeeId}`, { clientId })
         );
         setEmployees(res.data);
       } catch (err) {
@@ -299,8 +307,8 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
       }
     };
 
-    if (employeeId) fetchEmployee();
-  }, [employeeId]);
+    fetchEmployee();
+  }, [employeeId, clientId]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -334,9 +342,16 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
 
   useEffect(() => {
     const checkAttendanceStatus = async () => {
+      if (!employeeId || !clientId) {
+        setAttendanceStatus('');
+        setShowNotification(false);
+        return;
+      }
+
       try {
         const response = await axios.get(
-          `http://192.168.1.15:8080/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
+          buildApiUrl(`/api/attendance-records/check-today-attendance`),
+          { params: withClientId({ employeeId }, clientId) }
         );
         const status = response.data;
         setAttendanceStatus(status);
@@ -354,12 +369,17 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     checkAttendanceStatus();
     const interval = setInterval(checkAttendanceStatus, 300000);
     return () => clearInterval(interval);
-  }, [employeeId]);
+  }, [employeeId, clientId]);
 
   const handleBellPress = async () => {
+    if (!employeeId || !clientId) {
+      return;
+    }
+
     try {
       const response = await axios.get(
-        `http://192.168.1.15:8080/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
+        buildApiUrl(`/api/attendance-records/check-today-attendance`),
+        { params: withClientId({ employeeId }, clientId) }
       );
       const status = response.data;
       

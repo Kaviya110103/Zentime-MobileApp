@@ -10,6 +10,7 @@ import { Alert, Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View, 
 import * as ImageManipulator from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
 import { EmployeeContext } from "../context/EmployeeContext";
+import { buildApiUrl } from "../lib/api";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -23,6 +24,7 @@ export default function MarkTimeOutScreen() {
   const [uploading, setUploading] = useState(false);
   const { employee } = useContext(EmployeeContext);
   const companyCode = employee?.companyCode;
+  const clientId = employee?.clientId;
   const { recordId } = useLocalSearchParams();
   const [cameraReady, setCameraReady] = useState(false);
 
@@ -114,10 +116,29 @@ export default function MarkTimeOutScreen() {
       Alert.alert("Error", "Invalid record ID");
       return;
     }
+    if (!employee?.id) {
+      Alert.alert("Error", "Employee session missing. Please login again.");
+      return;
+    }
 
     setUploading(true);
 
     try {
+      const checkResponse = await fetch(
+        buildApiUrl(`/api/attendance/check-record`, {
+          clientId,
+          query: {
+            employeeId: employee.id,
+            recordId: recordId.toString(),
+          },
+        })
+      );
+      if (!checkResponse.ok) {
+        Alert.alert("Error", "Attendance record expired. Please refresh and try again.");
+        router.replace("/MarkAttendance");
+        return;
+      }
+
       const formData = new FormData();
       formData.append("recordId", recordId.toString());
       
@@ -133,7 +154,7 @@ export default function MarkTimeOutScreen() {
         type: type,
       });
 
-      const response = await fetch(`http://192.168.1.15:8080/api/attendance/mark-time-out`, {
+      const response = await fetch(buildApiUrl(`/api/attendance/mark-time-out`, { clientId }), {
         method: "POST",
         body: formData,
         headers: {

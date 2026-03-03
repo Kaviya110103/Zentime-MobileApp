@@ -5,6 +5,7 @@ import { useLocalSearchParams } from "expo-router";
 import React, { useContext, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { EmployeeContext } from "../context/EmployeeContext";
+import { buildApiUrl } from "../lib/api";
 
 interface LeaveRequest {
   date: string;
@@ -35,7 +36,7 @@ const companyCode = employee?.companyCode;  // 👈 get companyCode here
     try {
       setLoading(true);
       setError(null);
-      const res = await axios.get(`http://192.168.1.15:8080/api/leaves/employee/${employeeId}`);
+      const res = await axios.get(buildApiUrl(`/api/leaves/employee/${employeeId}`, { clientId: employee?.clientId }));
       setLeaves(res.data || []);
     } catch (err: any) {
       setError("Failed to fetch leave/permission data. Please try again later.");

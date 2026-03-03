@@ -4,7 +4,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 // import { RouteProp, useNavigation } from "@react-navigation/native";
 import axios from "axios";
 // import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -16,6 +16,7 @@ import {
 import { NativeStackNavigationProp } from "react-native-screens/lib/typescript/native-stack/types";
 import { router } from 'expo-router';
 import { EmployeeContext } from "../context/EmployeeContext";
+import { buildApiUrl, withClientId } from "../lib/api";
 
 interface DayCloseProps {
   recordId: number;
@@ -28,20 +29,19 @@ export default function DayCloseComponent({
 }: DayCloseProps) {
   const [loading, setLoading] = useState(false);
     // const navigation = useNavigation<MarkTimeInNavigationProp>();
-    const {  employee, setEmployee } = useContext(EmployeeContext);
-    const companyCode = employee?.companyCode;
+    const { employee } = useContext(EmployeeContext);
 
   const handleDayClose = async () => {
     setLoading(true);
     try {
       const res = await axios.post(
-        `http://192.168.1.15:8080/api/attendance/update-day-status`,
+        buildApiUrl(`/api/attendance/update-day-status`),
         null,
         {
-          params: {
+          params: withClientId({
             recordId,
             dayStatus: "Completed"
-          }
+          }, employee?.clientId)
         }
       );
       Alert.alert("Success", res.data);
@@ -149,8 +149,4 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
 });
-function useContext(EmployeeContext: any): { employee: any; setEmployee: any; } {
-  throw new Error("Function not implemented.");
-}
-
 

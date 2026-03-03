@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { buildApiUrl, withClientId } from '../lib/api';
 
 interface AttendanceReport {
   firstName: string;
@@ -68,7 +69,7 @@ const EmployeeAttendanceReport = () => {
       if (!clientId || !companyCode) return;
       
       try {
-        const res = await axios.get(`http://192.168.1.15:8080/api/clients/${clientId}`);
+        const res = await axios.get(buildApiUrl(`/api/clients/${clientId}`));
         setClient(res.data);
       } catch (err) {
         console.error('Error fetching client:', err);
@@ -87,7 +88,7 @@ const EmployeeAttendanceReport = () => {
       if (!employeeId || !companyCode) return;
       
       try {
-        const res = await axios.get(`http://192.168.1.15:8080/api/employees/${employeeId}`);
+        const res = await axios.get(buildApiUrl(`/api/employees/${employeeId}`, { clientId }));
         setEmployeeDetails({
           firstName: res.data.firstName || '',
           branch: res.data.branch || '',
@@ -119,9 +120,9 @@ const EmployeeAttendanceReport = () => {
       let year = currentDate.getFullYear();
       
       const response = await axios.get(
-        `http://192.168.1.15:8080/api/attendance/employee/${employeeId}`,
+        buildApiUrl(`/api/attendance/employee/${employeeId}`),
         { 
-          params: { month, year },
+          params: withClientId({ month, year }, clientId),
           timeout: 10000 // 10 second timeout
         }
       );

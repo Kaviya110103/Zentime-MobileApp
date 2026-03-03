@@ -19,6 +19,7 @@ import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { EmployeeContext } from '../context/EmployeeContext';
 import BottomNavBar from '../components/BottomNavBar';
+import { buildApiUrl, withClientId } from '../lib/api';
 
 type AttendanceData = {
   date: string;
@@ -59,6 +60,7 @@ export default function EmployeeCalendar() {
   const [loading, setLoading] = useState(false);
   const { employee } = useContext(EmployeeContext);
   const companyCode = employee?.companyCode;
+  const clientId = employee?.clientId;
   const employeeId = typeof employee?.id === 'number' ? employee.id : 0;
   const [isLoadingMonthly, setIsLoadingMonthly] = useState(false);
   
@@ -77,13 +79,14 @@ export default function EmployeeCalendar() {
     
     setIsLoadingMonthly(true);
     try {
-      const url = `http://192.168.1.15:8080/api/attendance/monthly/${employeeId}/${year}/${String(month).padStart(2, '0')}`;
+      const url = buildApiUrl(`/api/attendance/monthly/${employeeId}/${year}/${String(month).padStart(2, '0')}`);
       
       const res = await axios.get(url, {
         timeout: 15000,
         headers: {
           'Content-Type': 'application/json',
         },
+        params: withClientId({}, clientId),
       });
       
       const data = res.data;
@@ -149,12 +152,13 @@ export default function EmployeeCalendar() {
     
     try {
       const res = await axios.get(
-        `http://192.168.1.15:8080/api/attendance/${employeeId}/${day.dateString}`, 
+        buildApiUrl(`/api/attendance/${employeeId}/${day.dateString}`), 
         {
           timeout: 10000,
           headers: {
             'Content-Type': 'application/json',
           },
+          params: withClientId({}, clientId),
         }
       );
       
@@ -495,7 +499,6 @@ export default function EmployeeCalendar() {
               textDayHeaderFontSize: 12,
             }}
             style={styles.calendar}
-            markingType="simple"
             enableSwipeMonths={true}
           />
         </View>

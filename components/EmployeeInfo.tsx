@@ -76,7 +76,7 @@
 //     const fetchEmployee = async () => {
 //       try {
 //         const res = await axios.get<Employee>(
-//           `http://192.168.1.32:8080/api/employees/${employeeId}`
+//           `http://192.168.1.30:8080/api/employees/${employeeId}`
 //         );
 //         setEmployee(res.data);
 //       } catch (err) {
@@ -123,7 +123,7 @@
 //     const checkAttendanceStatus = async () => {
 //       try {
 //         const response = await axios.get(
-//           `http://192.168.1.32:8080/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
+//           `http://192.168.1.30:8080/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
 //         );
 //         const status = response.data;
 //         setAttendanceStatus(status);
@@ -148,7 +148,7 @@
 // const handleBellPress = async () => {
 //   try {
 //     const response = await axios.get(
-//       `http://192.168.1.32:8080/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
+//       `http://192.168.1.30:8080/api/attendance-records/check-today-attendance?employeeId=${employeeId}`
 //     );
 //     const status = response.data;
 

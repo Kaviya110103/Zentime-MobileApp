@@ -44,11 +44,11 @@ const AttendanceFlow: React.FC = () => {
         setRecord(data);
         
         // Determine view based on record state
-        if (!data.timeIn && !data.imageIn) {
+        if (!data.timeIn) {
           setView("main"); // Show ClockIn button
-        } else if (data.timeIn && data.imageIn && (!data.timeOut || !data.imageOut)) {
+        } else if (data.timeIn && !data.timeOut) {
           setView("main"); // Show ClockOut button
-        } else if (data.timeIn && data.imageIn && data.timeOut && data.imageOut && data.dayStatus !== "Completed") {
+        } else if (data.timeIn && data.timeOut && data.dayStatus !== "Completed") {
           setView("main"); // Show Day Close button
         } else if (data.dayStatus === "Completed") {
           setView("closed");
@@ -154,21 +154,21 @@ const AttendanceFlow: React.FC = () => {
       };
     }
     
-    if (!record.timeIn && !record.imageIn) {
+    if (!record.timeIn) {
       return {
         label: "Clock In",
         action: () => setView("timeIn")
       };
     }
     
-    if (record.timeIn && record.imageIn && (!record.timeOut || !record.imageOut)) {
+    if (record.timeIn && !record.timeOut) {
       return {
         label: "Clock Out",
         action: () => setView("timeOut")
       };
     }
     
-    if (record.timeIn && record.imageIn && record.timeOut && record.imageOut && record.dayStatus !== "Completed") {
+    if (record.timeIn && record.timeOut && record.dayStatus !== "Completed") {
       return {
         label: "Close Day",
         action: () => handleDayClose(record.id!)

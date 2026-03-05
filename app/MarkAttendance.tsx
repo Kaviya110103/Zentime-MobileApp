@@ -82,7 +82,7 @@ const MarkAttendance = () => {
                     if (label === 'SwapSchedule') {
                       router.push({
                         pathname: '/EmployeeCalendar',
-                        params: { employeeId: employeeId.toString() }  //http://192.168.1.30:8080    http://192.168.1.16:8080
+                        params: { employeeId: employeeId.toString() }  //https://${companyCode}.zentime.co.in    http://192.168.1.16:8080
                       });
                     } else if (label === 'Status') {
                       router.push({

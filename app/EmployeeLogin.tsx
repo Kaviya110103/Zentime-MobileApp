@@ -208,6 +208,7 @@ const handleGuestSubmit = async () => {
   ) => {
     const uname = inputUsername ?? username;
     const pwd = inputPassword ?? password;
+    const normalizedCompanyCode = companyCode.trim().toLowerCase();
 
     if (!uname.trim() || !pwd.trim()) {
       if (!silent) {
@@ -216,11 +217,22 @@ const handleGuestSubmit = async () => {
       return;
     }
 
+    if (!normalizedCompanyCode) {
+      if (!silent) {
+        Alert.alert("Error", "Please enter company code");
+      }
+      return;
+    }
+
     try {
       const response = await fetch(buildApiUrl(`/api/employees/login`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: uname, password: pwd, companyCode }),
+        body: JSON.stringify({
+          username: uname.trim(),
+          password: pwd,
+          companyCode: normalizedCompanyCode,
+        }),
       });
 
       const data = await response.json();

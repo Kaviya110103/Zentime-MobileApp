@@ -8,6 +8,14 @@ export const useNotificationSetup = () => {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
   useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+
     const register = async () => {
       if (!Device.isDevice) {
         Alert.alert('Must use physical device for push notifications');

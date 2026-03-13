@@ -16,6 +16,7 @@ import {
     Platform,
 } from "react-native";
 import { buildApiUrl } from "../lib/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const EmployeeLogin = () => {
   const [username, setUsername] = useState("");
@@ -225,6 +226,7 @@ const handleGuestSubmit = async () => {
     }
 
     try {
+      const pushToken = await AsyncStorage.getItem("expoPushToken");
       const response = await fetch(buildApiUrl(`/api/employees/login`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -232,6 +234,7 @@ const handleGuestSubmit = async () => {
           username: uname.trim(),
           password: pwd,
           companyCode: normalizedCompanyCode,
+          pushToken: pushToken || undefined,
         }),
       });
 

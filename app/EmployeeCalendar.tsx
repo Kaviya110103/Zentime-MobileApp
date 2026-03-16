@@ -13,7 +13,8 @@ import {
   Platform,
   StatusBar
 } from 'react-native';
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useCallback } from 'react';
+import { useFocusEffect } from "expo-router";
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,12 +35,21 @@ type AttendanceData = {
   missedTimes?: number;
 };
 
+type Holiday = {
+  id: number;
+  clientId: number;
+  holidayDate: string;
+  holidayName: string;
+  holidayType: string;
+};
+
 type MarkedDate = {
   marked?: boolean;
   dotColor?: string;
   selectedDotColor?: string;
   selected?: boolean;
   selectedColor?: string;
+  dots?: { key: string; color: string }[];
   customStyles?: {
     container?: object;
     text?: object;
@@ -56,8 +66,10 @@ export default function EmployeeCalendar() {
   const [markedDates, setMarkedDates] = useState<MarkedDates>({});
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [attendanceData, setAttendanceData] = useState<AttendanceData | null>(null);
+  const [selectedHoliday, setSelectedHoliday] = useState<Holiday | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const { employee } = useContext(EmployeeContext);
   const companyCode = employee?.companyCode;
   const clientId = employee?.clientId;
@@ -65,16 +77,79 @@ export default function EmployeeCalendar() {
   const [isLoadingMonthly, setIsLoadingMonthly] = useState(false);
   
   const [isEmployeeReady, setIsEmployeeReady] = useState(false);
+  const [visibleMonth, setVisibleMonth] = useState({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+  });
+
+  const normalizeHolidayDate = (raw?: string) => {
+    if (!raw) return "";
+    return raw.includes("T") ? raw.split("T")[0] : raw;
+  };
+
+  const fetchHolidays = async () => {
+    if (!clientId) return;
+    try {
+      let res;
+      try {
+        res = await axios.get(
+          buildApiUrl(`/api/admin/holidays`, { clientId })
+        );
+      } catch (error: any) {
+        if (error?.response?.status === 404) {
+          res = await axios.get(
+            buildApiUrl(`/admin/holidays`, { clientId })
+          );
+        } else {
+          throw error;
+        }
+      }
+      const list = Array.isArray(res.data) ? res.data : [];
+      const normalized = list.map((holiday: Holiday) => ({
+        ...holiday,
+        holidayDate: normalizeHolidayDate(holiday.holidayDate),
+      }));
+      setHolidays(normalized);
+      return normalized;
+    } catch (err) {
+      console.error('Error fetching holidays:', err);
+      setHolidays([]);
+      return [];
+    }
+  };
 
   useEffect(() => {
     if (employee?.id && employee?.companyCode) {
       setIsEmployeeReady(true);
       const today = new Date();
-      fetchMonthlyAttendance(today.getMonth() + 1, today.getFullYear());
+      const month = today.getMonth() + 1;
+      const year = today.getFullYear();
+      fetchHolidays().then((holidayList) => {
+        fetchMonthlyAttendance(month, year, holidayList);
+      });
     }
   }, [employee]);
 
-  const fetchMonthlyAttendance = async (month: number, year: number) => {
+  useFocusEffect(
+    useCallback(() => {
+      if (!employee?.id || !clientId) return;
+      fetchHolidays().then((holidayList) => {
+        fetchMonthlyAttendance(visibleMonth.month, visibleMonth.year, holidayList);
+      });
+    }, [employee?.id, clientId, visibleMonth.month, visibleMonth.year])
+  );
+
+  useEffect(() => {
+    if (isEmployeeReady) {
+      fetchMonthlyAttendance(visibleMonth.month, visibleMonth.year, holidays);
+    }
+  }, [holidays]);
+
+  const fetchMonthlyAttendance = async (
+    month: number,
+    year: number,
+    holidayList: Holiday[] = holidays
+  ) => {
     if (!isEmployeeReady) return;
     
     setIsLoadingMonthly(true);
@@ -108,22 +183,45 @@ export default function EmployeeCalendar() {
             
             if (!formattedDate) return;
             
-            let dotColor = '#757575';
-            if (item.attendanceStatus === 'Present') dotColor = '#4CAF50';
-            else if (item.attendanceStatus === 'Absent') dotColor = '#F44336';
-            else if (item.attendanceStatus === 'Late') dotColor = '#FF9800';
-            else if (item.attendanceStatus === 'Half Day') dotColor = '#FFC107';
+            let bgColor = '#F3F4F6';
+            let textColor = '#1F2937';
+            if (item.attendanceStatus === 'Present') bgColor = '#DCFCE7';
+            else if (item.attendanceStatus === 'Absent') bgColor = '#FEE2E2';
+            else if (item.attendanceStatus === 'Late') bgColor = '#FEF3C7';
+            else if (item.attendanceStatus === 'Half Day') bgColor = '#FEF9C3';
+            else if (item.attendanceStatus?.toLowerCase() === 'holiday') {
+              bgColor = '#8B5CF6';
+              textColor = '#FFFFFF';
+            }
 
             marked[formattedDate] = {
-              marked: true,
-              dotColor,
-              selectedDotColor: '#FFFFFF',
+              customStyles: {
+                container: { backgroundColor: bgColor, borderRadius: 8 },
+                text: { color: textColor, fontWeight: '600' },
+              },
             };
           } catch (error) {
             console.error('Error processing date:', item.date, error);
           }
         });
       }
+
+      holidayList
+        .filter((holiday) => {
+          if (!holiday?.holidayDate) return false;
+          const date = new Date(holiday.holidayDate);
+          return date.getMonth() + 1 === month && date.getFullYear() === year;
+        })
+        .forEach((holiday) => {
+          const dateKey = holiday.holidayDate;
+          if (!dateKey) return;
+          marked[dateKey] = {
+            customStyles: {
+              container: { backgroundColor: '#8B5CF6', borderRadius: 8 },
+              text: { color: '#FFFFFF', fontWeight: '600' },
+            },
+          };
+        });
       
       setMarkedDates(marked);
     } catch (err: any) {
@@ -148,6 +246,9 @@ export default function EmployeeCalendar() {
     }
     
     setSelectedDate(day.dateString);
+    setSelectedHoliday(
+      holidays.find((holiday) => holiday.holidayDate === day.dateString) || null
+    );
     setLoading(true);
     
     try {
@@ -189,7 +290,10 @@ export default function EmployeeCalendar() {
 
   const onMonthChange = (month: { month: number; year: number }) => {
     if (isEmployeeReady) {
-      fetchMonthlyAttendance(month.month, month.year);
+      setVisibleMonth({ month: month.month, year: month.year });
+      fetchHolidays().then((holidayList) => {
+        fetchMonthlyAttendance(month.month, month.year, holidayList);
+      });
     }
   };
 
@@ -258,6 +362,8 @@ export default function EmployeeCalendar() {
       case 'Absent': return '#F44336';
       case 'Late': return '#FF9800';
       case 'Half Day': return '#FFC107';
+      case 'Holiday': return '#8B5CF6';
+      case 'HOLIDAY': return '#8B5CF6';
       default: return '#757575';
     }
   };
@@ -282,6 +388,56 @@ export default function EmployeeCalendar() {
       );
     }
     
+    if (selectedHoliday) {
+      return (
+        <>
+          <View style={styles.dateHeader}>
+            <Feather name="calendar" size={20} color="#8B5CF6" />
+            <Text style={styles.dateText}>
+              {formatDate(selectedHoliday.holidayDate)}
+            </Text>
+          </View>
+          <View style={[
+            styles.statusCard,
+            { backgroundColor: '#8B5CF620' }
+          ]}>
+            <Text style={[styles.statusText, { color: '#8B5CF6' }]}>
+              Holiday Today
+            </Text>
+            <Text style={styles.dayStatusText}>
+              • {selectedHoliday.holidayName} ({selectedHoliday.holidayType === 'HALF' ? 'Half Day' : 'Full Day'})
+            </Text>
+          </View>
+          {attendanceData && attendanceData.attendanceStatus !== 'Holiday' && (
+            <View style={styles.detailsCard}>
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <Feather name="clock" size={18} color="#6B7280" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Time In</Text>
+                  <Text style={styles.detailValue}>
+                    {formatTime(attendanceData.timeIn)}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <Feather name="clock" size={18} color="#6B7280" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Time Out</Text>
+                  <Text style={styles.detailValue}>
+                    {formatTime(attendanceData.timeOut)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </>
+      );
+    }
+
     if (attendanceData) {
       return (
         <>
@@ -455,7 +611,7 @@ export default function EmployeeCalendar() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       >
-        <Text style={styles.headerTitle}>Leave & Permission Status</Text>
+        <Text style={styles.headerTitle}>Attendance Log</Text>
       </LinearGradient>
 
       <View style={styles.calendarWrapper}>
@@ -479,6 +635,7 @@ export default function EmployeeCalendar() {
             }}
             onDayPress={onDayPress}
             onMonthChange={onMonthChange}
+            markingType="custom"
             theme={{
               backgroundColor: '#FFFFFF',
               calendarBackground: '#FFFFFF',

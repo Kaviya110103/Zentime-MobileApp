@@ -59,6 +59,8 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
           const today = isToday(parsedDate);
           if (today && data.attendanceStatus === 'Absent') {
             setAttendanceStatus('Absent');
+          } else if (today && String(data.attendanceStatus || '').toLowerCase() === 'holiday') {
+            setAttendanceStatus('Holiday');
           } else if (today && data.timeIn) {
             setDayStarted(true);
             // If day already started, notify parent
@@ -80,9 +82,14 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
   }, [employeeId, companyCode]);
 
   const isAbsentToday = attendanceStatus === 'Absent';
+  const isHolidayToday = attendanceStatus === 'Holiday';
 
   const handleStartDayFlow = () => {
     if (isAbsentToday || dayStarted) return;
+    if (isHolidayToday) {
+      Alert.alert("Public Holiday", "Today is a public holiday. Attendance is disabled.");
+      return;
+    }
     setShowLocationModal(true);
   };
 
@@ -242,25 +249,25 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
         <TouchableOpacity
           style={[
             styles.touchIconBox,
-            (isAbsentToday || loading) && styles.disabledContainer
+            (isAbsentToday || isHolidayToday || loading) && styles.disabledContainer
           ]}
           onPress={handleStartDayFlow}
-          disabled={loading || isAbsentToday}
+          disabled={loading || isAbsentToday || isHolidayToday}
         >
           {loading ? (
             <ActivityIndicator size="small" color="#351153" />
           ) : (
             <>
               <MaterialIcons 
-                name={isAbsentToday ? "hotel" : "wb-sunny"} 
+                name={isHolidayToday ? "event" : isAbsentToday ? "hotel" : "wb-sunny"} 
                 size={38} 
-                color={isAbsentToday ? "#9CA3AF" : "#351153"} 
+                color={isAbsentToday || isHolidayToday ? "#9CA3AF" : "#351153"} 
               />
               <Text style={[
                 styles.dayStartText,
-                isAbsentToday && styles.disabledText
+                (isAbsentToday || isHolidayToday) && styles.disabledText
               ]}>
-                {isAbsentToday ? 'Take Rest' : 'Start Day'}
+                {isHolidayToday ? 'Holiday' : isAbsentToday ? 'Take Rest' : 'Start Day'}
               </Text>
             </>
           )}

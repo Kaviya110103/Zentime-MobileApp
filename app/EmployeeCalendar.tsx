@@ -13,7 +13,7 @@ import {
   Platform,
   StatusBar
 } from 'react-native';
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useMemo } from 'react';
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -32,6 +32,14 @@ type AttendanceData = {
   location?: string;
   timoutReason?: string;
   missedTimes?: number;
+};
+
+type HolidayData = {
+  id: number;
+  clientId: number;
+  holidayDate: string;
+  holidayName: string;
+  holidayType: 'FULL' | 'HALF' | string;
 };
 
 type MarkedDate = {
@@ -53,9 +61,12 @@ type MarkedDates = {
 const { width } = Dimensions.get('window');
 
 export default function EmployeeCalendar() {
-  const [markedDates, setMarkedDates] = useState<MarkedDates>({});
+  const [attendanceMarkedDates, setAttendanceMarkedDates] = useState<MarkedDates>({});
+  const [holidayMarkedDates, setHolidayMarkedDates] = useState<MarkedDates>({});
+  const [holidaysByDate, setHolidaysByDate] = useState<Record<string, HolidayData>>({});
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [attendanceData, setAttendanceData] = useState<AttendanceData | null>(null);
+  const [selectedHoliday, setSelectedHoliday] = useState<HolidayData | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const { employee } = useContext(EmployeeContext);
@@ -66,16 +77,27 @@ export default function EmployeeCalendar() {
   
   const [isEmployeeReady, setIsEmployeeReady] = useState(false);
 
+  const markedDates = useMemo<MarkedDates>(() => {
+    const merged: MarkedDates = { ...attendanceMarkedDates };
+    Object.entries(holidayMarkedDates).forEach(([date, mark]) => {
+      if (!merged[date]) {
+        merged[date] = mark;
+      }
+    });
+    return merged;
+  }, [attendanceMarkedDates, holidayMarkedDates]);
+
   useEffect(() => {
     if (employee?.id && employee?.companyCode) {
       setIsEmployeeReady(true);
       const today = new Date();
       fetchMonthlyAttendance(today.getMonth() + 1, today.getFullYear());
+      fetchMonthlyHolidays(today.getMonth() + 1, today.getFullYear());
     }
   }, [employee]);
 
   const fetchMonthlyAttendance = async (month: number, year: number) => {
-    if (!isEmployeeReady) return;
+    if (!employeeId) return;
     
     setIsLoadingMonthly(true);
     try {
@@ -125,7 +147,7 @@ export default function EmployeeCalendar() {
         });
       }
       
-      setMarkedDates(marked);
+      setAttendanceMarkedDates(marked);
     } catch (err: any) {
       console.error('Error fetching monthly attendance:', err);
       Alert.alert(
@@ -133,9 +155,47 @@ export default function EmployeeCalendar() {
         err.response?.data?.message || err.message || 'Failed to load attendance data',
         [{ text: 'OK' }]
       );
-      setMarkedDates({});
+      setAttendanceMarkedDates({});
     } finally {
       setIsLoadingMonthly(false);
+    }
+  };
+
+  const fetchMonthlyHolidays = async (month: number, year: number) => {
+    if (!employeeId) return;
+
+    try {
+      const res = await axios.get(
+        buildApiUrl(`/api/employee/holidays/monthly/${employeeId}/${year}/${month}`),
+        {
+          timeout: 10000,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          params: withClientId({}, clientId),
+        }
+      );
+
+      const holidayList: HolidayData[] = Array.isArray(res.data) ? res.data : [];
+      const holidayMap: Record<string, HolidayData> = {};
+      const holidayMarks: MarkedDates = {};
+
+      holidayList.forEach((holiday) => {
+        if (!holiday?.holidayDate) return;
+        holidayMap[holiday.holidayDate] = holiday;
+        holidayMarks[holiday.holidayDate] = {
+          marked: true,
+          dotColor: holiday.holidayType === 'HALF' ? '#8B5CF6' : '#1976D2',
+          selectedDotColor: '#FFFFFF',
+        };
+      });
+
+      setHolidaysByDate(holidayMap);
+      setHolidayMarkedDates(holidayMarks);
+    } catch (err) {
+      console.error('Error fetching monthly holidays:', err);
+      setHolidaysByDate({});
+      setHolidayMarkedDates({});
     }
   };
 
@@ -148,6 +208,7 @@ export default function EmployeeCalendar() {
     }
     
     setSelectedDate(day.dateString);
+    setSelectedHoliday(holidaysByDate[day.dateString] || null);
     setLoading(true);
     
     try {
@@ -190,6 +251,7 @@ export default function EmployeeCalendar() {
   const onMonthChange = (month: { month: number; year: number }) => {
     if (isEmployeeReady) {
       fetchMonthlyAttendance(month.month, month.year);
+      fetchMonthlyHolidays(month.month, month.year);
     }
   };
 
@@ -262,6 +324,11 @@ export default function EmployeeCalendar() {
     }
   };
 
+  const getHolidayTypeLabel = (holidayType?: string) => {
+    if (!holidayType) return 'Holiday';
+    return holidayType.toUpperCase() === 'HALF' ? 'Half Day Holiday' : 'Full Day Holiday';
+  };
+
   // Show loading while employee data is loading
   if (!isEmployeeReady) {
     return (
@@ -308,6 +375,20 @@ export default function EmployeeCalendar() {
           </View>
 
           <View style={styles.detailsCard}>
+            {!!selectedHoliday && (
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <Feather name="gift" size={18} color="#1976D2" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Holiday</Text>
+                  <Text style={[styles.detailValue, { color: '#1976D2' }]}>
+                    {selectedHoliday.holidayName} ({getHolidayTypeLabel(selectedHoliday.holidayType)})
+                  </Text>
+                </View>
+              </View>
+            )}
+
             <View style={styles.detailRow}>
               <View style={styles.detailIcon}>
                 <Feather name="clock" size={18} color="#6B7280" />
@@ -422,6 +503,19 @@ export default function EmployeeCalendar() {
         </>
       );
     }
+
+    if (selectedHoliday) {
+      return (
+        <View style={styles.noDataContainer}>
+          <Feather name="gift" size={48} color="#1976D2" />
+          <Text style={[styles.noDataText, { color: '#1976D2' }]}>{selectedHoliday.holidayName}</Text>
+          <Text style={styles.noDataSubtext}>{getHolidayTypeLabel(selectedHoliday.holidayType)}</Text>
+          <Text style={styles.noDataSubtext}>
+            {selectedDate ? formatDate(selectedDate) : selectedHoliday.holidayDate}
+          </Text>
+        </View>
+      );
+    }
     
     return (
       <View style={styles.noDataContainer}>
@@ -513,7 +607,7 @@ export default function EmployeeCalendar() {
       >
         <View style={modalContainerStyle}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Attendance Details</Text>
+            <Text style={styles.modalTitle}>Attendance / Holiday Details</Text>
             <TouchableOpacity 
               style={styles.closeButton}
               onPress={() => setModalVisible(false)}

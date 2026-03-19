@@ -1,6 +1,6 @@
 type QueryValue = string | number | boolean | null | undefined;
 
-const DEFAULT_BASE_URL = "https://iie.zentime.co.in";
+const DEFAULT_BASE_URL = "http://192.168.1.6:8080/";
 
 function normalizeBaseUrl(rawBaseUrl: string): string {
   // Prevent runtime URL parsing errors from accidental spaces in env/default values.

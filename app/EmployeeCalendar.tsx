@@ -549,7 +549,7 @@ export default function EmployeeCalendar() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       >
-        <Text style={styles.headerTitle}>Leave & Permission Status</Text>
+        <Text style={styles.headerTitle}>Attendance Logs</Text>
       </LinearGradient>
 
       <View style={styles.calendarWrapper}>

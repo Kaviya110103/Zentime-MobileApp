@@ -4,6 +4,15 @@ enableScreens(); // ✅ MUST be called before any navigation
 
 import React, { useContext, useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
+import { useFonts } from 'expo-font';
+import {
+  Entypo,
+  Feather,
+  FontAwesome5,
+  Ionicons,
+  MaterialCommunityIcons,
+  MaterialIcons,
+} from '@expo/vector-icons';
 import { EmployeeProvider } from '../context/EmployeeContext';
 import { EmployeeContext } from '../context/EmployeeContext';
 import { useNotificationSetup } from '../useNotificationSetup';
@@ -45,6 +54,19 @@ const NotificationRegistrar = () => {
 };
 
 export default function Layout() {
+  const [fontsLoaded] = useFonts({
+    ...Feather.font,
+    ...FontAwesome5.font,
+    ...MaterialIcons.font,
+    ...MaterialCommunityIcons.font,
+    ...Ionicons.font,
+    ...Entypo.font,
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <EmployeeProvider>
       <NotificationRegistrar />

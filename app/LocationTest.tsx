@@ -8,11 +8,11 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import axios from 'axios';
 import { EmployeeContext } from '../context/EmployeeContext';
 import { buildApiUrl, withClientId } from '../lib/api';
+import LocationMap from '../components/LocationMap';
 
 type LocationDto = {
   id: number;
@@ -173,34 +173,11 @@ const LocationTest = ({
   return (
     <View style={{ flex: 1 }}>
       {userLocation && locations.length > 0 && !showOnlyStatus && (
-        <MapView
-          style={inModal ? styles.modalMap : styles.map}
-          provider={Platform.OS === 'android' ? 'google' : undefined}
-          mapType="satellite"
-          region={{
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }}
-          showsUserLocation
-        >
-          {locations.map((fence) => (
-            <React.Fragment key={fence.id}>
-              <Marker
-                coordinate={fence}
-                title={fence.name}
-                description={fence.address}
-              />
-              <Circle
-                center={fence}
-                radius={fence.radius}
-                strokeColor="rgba(0,255,0,0.8)"
-                fillColor="rgba(0,255,0,0.3)"
-              />
-            </React.Fragment>
-          ))}
-        </MapView>
+        <LocationMap
+          inModal={inModal}
+          userLocation={userLocation}
+          locations={locations}
+        />
       )}
 
       <View style={styles.statusPanel}>
@@ -239,14 +216,6 @@ const LocationTest = ({
 };
 
 const styles = StyleSheet.create({
-  map: {
-    width: '100%',
-    height: '75%',
-  },
-  modalMap: {
-    width: '100%',
-    height: 250,
-  },
   statusPanel: {
     padding: 10,
     alignItems: 'center',

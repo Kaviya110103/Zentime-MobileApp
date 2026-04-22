@@ -44,8 +44,21 @@ interface Employee {
   resetToken: string | null;
   salary: number | null;
   weekOff: string | null;
+  shiftStartTime: string | null;
+  shiftEndTime: string | null;
+  leavePolicyType: string | null;
+  casualLeaveBalance: number | null;
+  employeeCode: string | null;
   clientId: number;
   companyCode: string;
+  additionalWorkingDays?: EmployeeAdditionalWorkingDay[];
+}
+
+interface EmployeeAdditionalWorkingDay {
+  id: number;
+  dayType: string;
+  timeIn: string | null;
+  timeOut: string | null;
 }
 
 const Employee = () => {
@@ -115,7 +128,7 @@ const Employee = () => {
   const handleInputChange = useCallback((field: keyof Employee, value: string) => {
     setFormData(prev => {
       let fieldValue: any = value;
-      if (field === "salary") {
+      if (field === "salary" || field === "casualLeaveBalance") {
         fieldValue = value === "" ? null : Number(value);
       }
       return {
@@ -130,23 +143,86 @@ const Employee = () => {
 
     try {
       setSaving(true);
+      const requestedNewPassword = formData.password ? String(formData.password).trim() : "";
+
+      if (requestedNewPassword) {
+        const hasMinLength = requestedNewPassword.length >= 8;
+        const hasLetter = /[A-Za-z]/.test(requestedNewPassword);
+        const hasNumber = /\d/.test(requestedNewPassword);
+        const hasSpecialChar = /[^A-Za-z0-9]/.test(requestedNewPassword);
+
+        if (!hasMinLength || !hasLetter || !hasNumber || !hasSpecialChar) {
+          setSaving(false);
+          Alert.alert(
+            "Invalid Password",
+            "Password must be at least 8 characters and include letters, numbers, and at least one special character."
+          );
+          return;
+        }
+      }
+
+      const payload: Partial<Employee> = { ...formData };
+      // Password is updated through dedicated endpoint to avoid silent misses.
+      delete payload.password;
+
       const response = await fetch(buildApiUrl(`/api/employees/update/${employeeId}`, { clientId }), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Profile update failed. status: ${response.status}`);
+      }
 
       const updatedEmployee = await response.json();
+
+      if (requestedNewPassword) {
+        const changePasswordResponse = await fetch(
+          buildApiUrl(`/api/employees/${employeeId}/change-password`, { clientId }),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ newPassword: requestedNewPassword }),
+          }
+        );
+        if (!changePasswordResponse.ok) {
+          // Fallback for older backend deployments: retry via legacy update API with password.
+          if (changePasswordResponse.status === 404 || changePasswordResponse.status === 405) {
+            const legacyPasswordResponse = await fetch(
+              buildApiUrl(`/api/employees/update/${employeeId}`, { clientId }),
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  ...payload,
+                  password: requestedNewPassword,
+                }),
+              }
+            );
+            if (!legacyPasswordResponse.ok) {
+              const legacyErrText = await legacyPasswordResponse.text();
+              throw new Error(legacyErrText || `Password update failed. status: ${legacyPasswordResponse.status}`);
+            }
+          } else {
+            const errText = await changePasswordResponse.text();
+            throw new Error(errText || `Password change failed. status: ${changePasswordResponse.status}`);
+          }
+        }
+      }
+
       setEmployee(updatedEmployee);
-      setFormData(updatedEmployee); // Update formData too
+      setFormData({
+        ...(updatedEmployee as Partial<Employee>),
+        password: "",
+      }); // clear password field after save
       setIsEditing(false);
       setSaving(false);
-      Alert.alert("Success", "Profile updated successfully");
-    } catch (err) {
+      Alert.alert("Success", requestedNewPassword ? "Profile and password updated successfully" : "Profile updated successfully");
+    } catch (err: any) {
       setSaving(false);
-      Alert.alert("Error", "Failed to update profile");
+      Alert.alert("Error", err?.message || "Failed to update profile");
       console.error("Update error:", err);
     }
   }, [employeeId, formData, setEmployee, companyCode]);
@@ -154,7 +230,10 @@ const Employee = () => {
   const toggleEditMode = useCallback(() => {
     if (!isEditing && employee) {
       // When entering edit mode, ensure formData is current
-      setFormData(employee as unknown as Partial<Employee>);
+      setFormData({
+        ...(employee as unknown as Partial<Employee>),
+        password: "",
+      });
     }
     setIsEditing(!isEditing);
     setMenuVisible(false);
@@ -163,7 +242,10 @@ const Employee = () => {
   const handleCancel = useCallback(() => {
     // Reset form data to original employee data
     if (employee) {
-      setFormData(employee as unknown as Partial<Employee>);
+      setFormData({
+        ...(employee as unknown as Partial<Employee>),
+        password: "",
+      });
     }
     setIsEditing(false);
   }, [employee]);
@@ -235,12 +317,12 @@ const Employee = () => {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <LinearGradient colors={["#ffffff", "#f8fafc"]} style={styles.background}>
         {/* Header */}
         <LinearGradient
           colors={['#7726B9', '#5E1D9E']}
-          style={styles.header}
+          style={[styles.header, { paddingTop: insets.top + 16 }]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
         >
@@ -293,7 +375,11 @@ const Employee = () => {
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 100 + Math.max(insets.bottom, 8) },
+            isDesktop && styles.desktopScrollContent,
+          ]}
           keyboardShouldPersistTaps="handled"
         >
           {/* Profile Image Section */}
@@ -465,6 +551,35 @@ const Employee = () => {
                   value={formData.weekOff || ""}
                   onChangeText={handleInputChange}
                 />
+                <EditableInfoRow
+                  icon={<Ionicons name="time-outline" size={18} color="#64748b" />}
+                  label="Shift Start"
+                  field="shiftStartTime"
+                  value={formData.shiftStartTime || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="time-outline" size={18} color="#64748b" />}
+                  label="Shift End"
+                  field="shiftEndTime"
+                  value={formData.shiftEndTime || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="briefcase-outline" size={18} color="#64748b" />}
+                  label="Leave Policy"
+                  field="leavePolicyType"
+                  value={formData.leavePolicyType || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="wallet-outline" size={18} color="#64748b" />}
+                  label="Casual Leave Balance"
+                  field="casualLeaveBalance"
+                  value={formData.casualLeaveBalance ?? ""}
+                  keyboardType="numeric"
+                  onChangeText={handleInputChange}
+                />
               </>
             ) : (
               <>
@@ -493,7 +608,116 @@ const Employee = () => {
                   label="Week Off"
                   value={employee.weekOff ?? ""}
                 />
+                <InfoRow
+                  icon={<Ionicons name="time-outline" size={18} color="#64748b" />}
+                  label="Shift Start"
+                  value={employee.shiftStartTime ?? "--"}
+                />
+                <InfoRow
+                  icon={<Ionicons name="time-outline" size={18} color="#64748b" />}
+                  label="Shift End"
+                  value={employee.shiftEndTime ?? "--"}
+                />
+                <InfoRow
+                  icon={<Ionicons name="briefcase-outline" size={18} color="#64748b" />}
+                  label="Leave Policy"
+                  value={String(formData.leavePolicyType ?? "--")}
+                />
+                <InfoRow
+                  icon={<Ionicons name="wallet-outline" size={18} color="#64748b" />}
+                  label="Casual Leave Balance"
+                  value={formData.casualLeaveBalance ?? 0}
+                />
               </>
+            )}
+          </ProfileSection>
+
+          <ProfileSection title="Login Credentials">
+            {isEditing ? (
+              <>
+                <InfoRow
+                  icon={<Ionicons name="person-circle-outline" size={18} color="#64748b" />}
+                  label="Employee ID"
+                  value={employee.id}
+                />
+                <InfoRow
+                  icon={<Ionicons name="card-outline" size={18} color="#64748b" />}
+                  label="Employee Code"
+                  value={String(formData.employeeCode ?? '--')}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="at" size={18} color="#64748b" />}
+                  label="Username"
+                  field="username"
+                  value={formData.username || ""}
+                  onChangeText={handleInputChange}
+                />
+                <EditableInfoRow
+                  icon={<Ionicons name="lock-closed-outline" size={18} color="#64748b" />}
+                  label="Password"
+                  field="password"
+                  value={formData.password || ""}
+                  onChangeText={handleInputChange}
+                />
+                <InfoRow
+                  icon={<Ionicons name="business-outline" size={18} color="#64748b" />}
+                  label="Company Code"
+                  value={employee.companyCode || '--'}
+                />
+                <InfoRow
+                  icon={<Ionicons name="id-card-outline" size={18} color="#64748b" />}
+                  label="Client ID"
+                  value={employee.clientId}
+                />
+              </>
+            ) : (
+              <>
+                <InfoRow
+                  icon={<Ionicons name="person-circle-outline" size={18} color="#64748b" />}
+                  label="Employee ID"
+                  value={employee.id}
+                />
+                <InfoRow
+                  icon={<Ionicons name="card-outline" size={18} color="#64748b" />}
+                  label="Employee Code"
+                  value={String(formData.employeeCode ?? '--')}
+                />
+                <InfoRow
+                  icon={<Ionicons name="at" size={18} color="#64748b" />}
+                  label="Username"
+                  value={employee.username || '--'}
+                />
+                <InfoRow
+                  icon={<Ionicons name="lock-closed-outline" size={18} color="#64748b" />}
+                  label="Password"
+                  value={formData.password ? '********' : '--'}
+                />
+                <InfoRow
+                  icon={<Ionicons name="business-outline" size={18} color="#64748b" />}
+                  label="Company Code"
+                  value={employee.companyCode || '--'}
+                />
+                <InfoRow
+                  icon={<Ionicons name="id-card-outline" size={18} color="#64748b" />}
+                  label="Client ID"
+                  value={employee.clientId}
+                />
+              </>
+            )}
+          </ProfileSection>
+
+          <ProfileSection title="Additional Working Days">
+            {formData.additionalWorkingDays && formData.additionalWorkingDays.length > 0 ? (
+              formData.additionalWorkingDays.map((day) => (
+                <View key={day.id} style={styles.additionalDayRow}>
+                  <Text style={styles.additionalDayType}>{day.dayType || '--'}</Text>
+                  <Text style={styles.additionalDayTime}>
+                    {day.timeIn || '--:--'} - {day.timeOut || '--:--'}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noAttendanceText}>No additional working days configured.</Text>
             )}
           </ProfileSection>
 
@@ -592,7 +816,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    paddingTop: 40,
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 20,
@@ -742,7 +965,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingVertical: 16,
-    paddingBottom: 80,
   },
   desktopScrollContent: {
     paddingHorizontal: 32,
@@ -809,6 +1031,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#ef4444",
     textAlign: "center",
+  },
+  additionalDayRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  additionalDayType: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  additionalDayTime: {
+    fontSize: 13,
+    color: "#475569",
+  },
+  noAttendanceText: {
+    color: "#64748b",
+    fontSize: 14,
+    paddingVertical: 6,
   },
 });
 

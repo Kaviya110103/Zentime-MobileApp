@@ -488,80 +488,82 @@ const EmployeeAttendanceReport = () => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#7726B9', '#5E1D9E']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      >
-        <Text style={styles.headerTitle}>Monthly Attendance Report</Text>
-      </LinearGradient>
-      
-      <View style={styles.printContainer}>
-        <View style={styles.printHeader}>
-          <Text style={styles.printSubtitle}>{getPeriodString()}</Text>
-          <Text style={styles.employeeName}>{employeeDetails.firstName}</Text>
-        </View>
+      <View style={styles.contentWrapper}>
+        <LinearGradient
+          colors={['#7726B9', '#5E1D9E']}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Text style={styles.headerTitle}>Monthly Attendance Report</Text>
+        </LinearGradient>
         
-        <ScrollView style={styles.printScroll}>
-          {reportData.length === 0 ? (
-            <View style={styles.noDataContainer}>
-              <Text style={styles.noDataText}>No attendance records found for {getPeriodString()}</Text>
-            </View>
-          ) : (
-            <View style={styles.printTable}>
-              <View style={styles.printTableHeader}>
-                <Text style={styles.printHeaderCell}>Date</Text>
-                <Text style={styles.printHeaderCell}>Time In</Text>
-                <Text style={styles.printHeaderCell}>Time Out</Text>
-                <Text style={styles.printHeaderCell}>Working Hours</Text>
-                <Text style={styles.printHeaderCell}>Missed Time</Text>
-                <Text style={styles.printHeaderCell}>Status</Text>
+        <View style={styles.printContainer}>
+          <View style={styles.printHeader}>
+            <Text style={styles.printSubtitle}>{getPeriodString()}</Text>
+            <Text style={styles.employeeName}>{employeeDetails.firstName}</Text>
+          </View>
+          
+          <ScrollView style={styles.printScroll}>
+            {reportData.length === 0 ? (
+              <View style={styles.noDataContainer}>
+                <Text style={styles.noDataText}>No attendance records found for {getPeriodString()}</Text>
               </View>
-              
-              {printData.map((item) => {
-                let statusStyle = styles.printOtherStatus;
-                if (item.attendanceStatus === 'Present') {
-                  statusStyle = styles.printPresentStatus;
-                } else if (item.attendanceStatus === 'Absent') {
-                  statusStyle = styles.printAbsentStatus;
-                }
-                return (
-                <View key={item.date} style={styles.printTableRow}>
-                  <Text style={styles.printCell}>{item.date}</Text>
-                  <Text style={styles.printCell}>{formatTime(item.timeIn)}</Text>
-                  <Text style={styles.printCell}>{formatTime(item.timeOut)}</Text>
-                  <Text style={styles.printCell}>{item.workingHours}</Text>
-                  <Text style={styles.printCell}>{item.missedTimes}</Text>
-                  <Text style={[styles.printCell, statusStyle]}>
-                    {item.attendanceStatus}
-                  </Text>
-                </View>
-              );
-              })}
-            </View>
-          )}
-        </ScrollView>
-        
-        <View style={styles.printFooter}>
-          <Text style={styles.printFooterText}>Generated on {new Date().toLocaleDateString()}</Text>
-        </View>
-        
-        <View style={styles.modalButtons}>
-          <TouchableOpacity 
-            style={styles.downloadButton}
-            onPress={generateAndSharePDF}
-            disabled={pdfLoading || reportData.length === 0}
-          >
-            {pdfLoading ? (
-              <ActivityIndicator color="white" />
             ) : (
-              <>
-                <Feather name="download" size={20} color="white" />
-                <Text style={styles.downloadButtonText}>Download PDF</Text>
-              </>
+              <View style={styles.printTable}>
+                <View style={styles.printTableHeader}>
+                  <Text style={styles.printHeaderCell}>Date</Text>
+                  <Text style={styles.printHeaderCell}>Time In</Text>
+                  <Text style={styles.printHeaderCell}>Time Out</Text>
+                  <Text style={styles.printHeaderCell}>Working Hours</Text>
+                  <Text style={styles.printHeaderCell}>Missed Time</Text>
+                  <Text style={styles.printHeaderCell}>Status</Text>
+                </View>
+                
+                {printData.map((item) => {
+                  let statusStyle = styles.printOtherStatus;
+                  if (item.attendanceStatus === 'Present') {
+                    statusStyle = styles.printPresentStatus;
+                  } else if (item.attendanceStatus === 'Absent') {
+                    statusStyle = styles.printAbsentStatus;
+                  }
+                  return (
+                  <View key={item.date} style={styles.printTableRow}>
+                    <Text style={styles.printCell}>{item.date}</Text>
+                    <Text style={styles.printCell}>{formatTime(item.timeIn)}</Text>
+                    <Text style={styles.printCell}>{formatTime(item.timeOut)}</Text>
+                    <Text style={styles.printCell}>{item.workingHours}</Text>
+                    <Text style={styles.printCell}>{item.missedTimes}</Text>
+                    <Text style={[styles.printCell, statusStyle]}>
+                      {item.attendanceStatus}
+                    </Text>
+                  </View>
+                );
+                })}
+              </View>
             )}
-          </TouchableOpacity>
+          </ScrollView>
+          
+          <View style={styles.printFooter}>
+            <Text style={styles.printFooterText}>Generated on {new Date().toLocaleDateString()}</Text>
+          </View>
+          
+          <View style={styles.modalButtons}>
+            <TouchableOpacity 
+              style={styles.downloadButton}
+              onPress={generateAndSharePDF}
+              disabled={pdfLoading || reportData.length === 0}
+            >
+              {pdfLoading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <>
+                  <Feather name="download" size={20} color="white" />
+                  <Text style={styles.downloadButtonText}>Download PDF</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -582,6 +584,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
     marginTop: 0,
+  },
+  contentWrapper: {
+    flex: 1,
+    paddingBottom: 78,
   },
   loadingContainer: {
     flex: 1,

@@ -2,7 +2,8 @@ import React, { useContext } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { EmployeeContext } from '../context/EmployeeContext'; // ✅ import context
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EmployeeContext } from '../context/EmployeeContext';
 
 type BottomNavBarProps = {
   activeTab: string;
@@ -27,12 +28,14 @@ const BottomNavItem: React.FC<BottomNavItemProps> = ({ icon, label, active, onPr
 
 const BottomNavigation: React.FC<BottomNavBarProps> = ({ activeTab }) => {
   const router = useRouter();
-  const { employee, logout } = useContext(EmployeeContext); // ✅ Get employee
+  const { employee, logout } = useContext(EmployeeContext);
+  const insets = useSafeAreaInsets();
 
   const employeeId = employee?.id;
+  const bottomInset = Math.max(insets.bottom, 8);
 
   return (
-    <View style={styles.bottomNav}>
+    <View style={[styles.bottomNav, { height: 62 + bottomInset, paddingBottom: bottomInset }]}> 
       <BottomNavItem
         icon={<FontAwesome5 name="home" />}
         label="Home"
@@ -90,14 +93,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 70,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     backgroundColor: '#351153',
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingBottom: 10,
+    zIndex: 20,
+    elevation: 20,
   },
   navItem: {
     alignItems: 'center',

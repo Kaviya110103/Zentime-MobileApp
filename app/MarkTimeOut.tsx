@@ -141,6 +141,19 @@ export default function MarkTimeOutScreen() {
 
       const formData = new FormData();
       formData.append("recordId", recordId.toString());
+
+      const shiftEndMinutes = parseTimeStringToMinutes(employee?.shiftEndTime);
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const effectiveShiftEndMinutes = shiftEndMinutes ?? (19 * 60);
+      const isAfterShiftEnd = currentMinutes > effectiveShiftEndMinutes;
+      let overtimeRequested = false;
+
+      if (isAfterShiftEnd) {
+        overtimeRequested = await askOvertimeConfirmation();
+      }
+
+      formData.append("overtimeRequested", String(overtimeRequested));
       
       // Get file info
       const filename = uri.split('/').pop() || `timeout_${Date.now()}.jpg`;
@@ -183,6 +196,30 @@ export default function MarkTimeOutScreen() {
     } finally {
       setUploading(false);
     }
+  };
+
+  const askOvertimeConfirmation = () =>
+    new Promise<boolean>((resolve) => {
+      Alert.alert(
+        "Overtime Request",
+        "Do you want to apply for overtime?",
+        [
+          { text: "No", style: "cancel", onPress: () => resolve(false) },
+          { text: "Yes", onPress: () => resolve(true) },
+        ],
+        { cancelable: false }
+      );
+    });
+
+  const parseTimeStringToMinutes = (timeString?: string | null): number | null => {
+    if (!timeString) return null;
+    const parts = String(timeString).split(":");
+    if (parts.length < 2) return null;
+    const hours = Number(parts[0]);
+    const minutes = Number(parts[1]);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+    return hours * 60 + minutes;
   };
 
   const renderPicture = () => (

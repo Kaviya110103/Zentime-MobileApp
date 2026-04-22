@@ -7,11 +7,10 @@ import {
   StyleSheet,
   ImageBackground,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Feather,
-  FontAwesome5,
   MaterialCommunityIcons,
-  Ionicons,
   Entypo,
   MaterialIcons,
 } from '@expo/vector-icons';
@@ -26,12 +25,10 @@ import BottomNavBar from '../components/BottomNavBar';
 import { router } from 'expo-router';
 
 const MarkAttendance = () => {
-  const [activeTab, setActiveTab] = useState('Home');
-
-  const {  employee, setEmployee } = useContext(EmployeeContext);
-  const companyCode = employee?.companyCode;
+  const { employee } = useContext(EmployeeContext);
   const employeeId = employee?.id;
   const [currentAddress, setCurrentAddress] = useState('');
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!employeeId) {
@@ -41,7 +38,12 @@ const MarkAttendance = () => {
 
   return (
     <View style={styles.mainContainer}>
-      <ScrollView contentContainerStyle={styles.container} scrollEnabled={false}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          { paddingBottom: 90 + Math.max(insets.bottom, 8) },
+        ]}
+      >
         <ImageBackground
           source={require('../assets/images/bg.png')}
           style={styles.timeCard}
@@ -70,9 +72,9 @@ const MarkAttendance = () => {
           <View style={styles.botoombox}>
             <View style={styles.gridIcons}>
               {[
-                [MaterialIcons, 'house-siding', 'Status', '#FF6B6B'],
+                [MaterialIcons, 'home', 'Status', '#FF6B6B'],
                 [Feather, 'calendar', 'SwapSchedule', '#4ECDC4'],
-                [MaterialIcons, 'speed', 'Announcement', '#45B7D1'],
+                [MaterialIcons, 'campaign', 'Announcement', '#45B7D1'],
                 [MaterialCommunityIcons, 'file-document-outline', 'Report', '#A78BFA'],
               ].map(([Icon, iconName, label, iconColor], index) => (
                 <TouchableOpacity
@@ -82,7 +84,7 @@ const MarkAttendance = () => {
                     if (label === 'SwapSchedule') {
                       router.push({
                         pathname: '/EmployeeCalendar',
-                        params: { employeeId: employeeId.toString() }  //https://${companyCode}.zentime.co.in    http://192.168.1.16:8080
+                        params: { employeeId: employeeId.toString() }
                       });
                     } else if (label === 'Status') {
                       router.push({
@@ -101,21 +103,20 @@ const MarkAttendance = () => {
                     }
                   }}
                 >
-                  <View style={styles.container}>
+                  <View style={styles.iconWrap}>
                     {React.createElement(Icon as React.ComponentType<any>, {
                       name: iconName,
                       size: 28,
                       color: iconColor,
-                      style: { marginLeft: 18 },
                     })}
                   </View>
                   <Text style={styles.iconLabel}>{typeof label === 'string' ? label : ''}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <ScrollView   contentContainerStyle={styles.container}>
-            <AttendanceActivity employeeId={employeeId} />
-            </ScrollView>
+            <View style={styles.activityContainer}>
+              <AttendanceActivity employeeId={employeeId} />
+            </View>
           </View>
         </ImageBackground>
       </ScrollView>
@@ -225,6 +226,7 @@ const styles = StyleSheet.create({
   iconItem: {
     width: '24%',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
     borderColor: 'white',
     borderWidth: 1,
@@ -237,11 +239,20 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#333',
     marginTop: 4,
+    textAlign: 'center',
+  },
+  iconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 32,
   },
   botoombox: {
     backgroundColor: 'white',
     paddingVertical: 18,
     borderRadius: 20,
     minHeight: 500,
+  },
+  activityContainer: {
+    width: '100%',
   },
 });

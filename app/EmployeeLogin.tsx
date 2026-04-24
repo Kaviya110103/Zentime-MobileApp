@@ -92,7 +92,13 @@ const EmployeeLogin = () => {
         }),
       });
 
-      const data = await response.json();
+      const rawText = await response.text();
+      let data: any = null;
+      try {
+        data = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        data = null;
+      }
 
       if (response.ok) {
         if (data && data.id) {
@@ -104,7 +110,16 @@ const EmployeeLogin = () => {
           if (!silent) showInvalidCredentialsAlert();
         }
       } else {
-        if (!silent) showInvalidCredentialsAlert();
+        if (!silent) {
+          if (response.status === 401) {
+            showInvalidCredentialsAlert();
+          } else {
+            const backendMessage =
+              (data && (data.error || data.message)) ||
+              `Login failed (HTTP ${response.status})`;
+            Alert.alert("Login Failed", String(backendMessage));
+          }
+        }
       }
     } catch (err) {
       console.error("Login error:", err);

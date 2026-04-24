@@ -3,8 +3,8 @@ import BottomNavBar from "../components/BottomNavBar";
 import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from 'expo-router';
-import React, { useCallback, useContext, useEffect, useState, useRef } from "react";
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useContext, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -75,50 +75,44 @@ const Employee = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   
-  // Prevent multiple fetches
-  const hasFetched = useRef(false);
-
   useEffect(() => {
     if (!employeeId) {
       router.replace("/EmployeeLogin");
     }
   }, [employeeId, router]);
 
-  // Fetch employee data on initial load - FIXED: Only fetch if data is missing
-  useEffect(() => {
-    const fetchEmployeeData = async () => {
-      if (!employeeId || hasFetched.current) return;
-      
-      // If employee data already exists in context, use it immediately
-      if (employee?.id === employeeId) {
-        setFormData(employee as unknown as Partial<Employee>);
-        setLoading(false);
-        hasFetched.current = true;
-        return;
-      }
+  const fetchEmployeeData = useCallback(async () => {
+    if (!employeeId) return;
 
-      try {
-        hasFetched.current = true;
+    try {
+      setError(null);
+      if (!employee) {
         setLoading(true);
-        const response = await fetch(buildApiUrl(`/api/employees/${employeeId}`, { clientId }));
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        // Batch state updates to prevent multiple re-renders
-        setEmployee(data);
-        setFormData(data);
-        setLoading(false);
-      } catch (err: any) {
-        setError(err.message);
-        setLoading(false);
-        Alert.alert("Error", "Failed to fetch employee data");
       }
-    };
+      const response = await fetch(buildApiUrl(`/api/employees/${employeeId}`, { clientId }));
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-    fetchEmployeeData();
-  }, [employeeId, clientId]); // Keep scoped to employee identity/context
+      const data = await response.json();
+      setEmployee(data);
+      setFormData((prev) => ({
+        ...(data as Partial<Employee>),
+        password: prev.password ?? "",
+      }));
+      setLoading(false);
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+      Alert.alert("Error", "Failed to fetch employee data");
+    }
+  }, [employeeId, clientId, setEmployee, employee]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchEmployeeData();
+    }, [fetchEmployeeData])
+  );
 
   const handleLogout = async () => {
     await logout();

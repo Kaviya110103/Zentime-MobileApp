@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Employee {
@@ -56,26 +56,31 @@ export const EmployeeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loadEmployee();
   }, []);
 
-  const setEmployee = async (emp: Employee | null) => {
+  const setEmployee = useCallback(async (emp: Employee | null) => {
     if (emp) {
       await AsyncStorage.setItem('employee', JSON.stringify(emp));
     } else {
       await AsyncStorage.removeItem('employee');
     }
     setEmployeeState(emp);
-  };
+  }, []);
 
- const logout = async () => {
-  setEmployeeState(null);
-  try {
-    await AsyncStorage.multiRemove(['employee', 'employeeCredentials']);
-  } catch (error) {
-    console.warn('Failed to clear auth storage on logout:', error);
-  }
-};
+  const logout = useCallback(async () => {
+    setEmployeeState(null);
+    try {
+      await AsyncStorage.multiRemove(['employee', 'employeeCredentials']);
+    } catch (error) {
+      console.warn('Failed to clear auth storage on logout:', error);
+    }
+  }, []);
+
+  const contextValue = useMemo(
+    () => ({ employee, authReady, setEmployee, logout }),
+    [employee, authReady, setEmployee, logout]
+  );
 
   return (
-    <EmployeeContext.Provider value={{ employee, authReady, setEmployee, logout }}>
+    <EmployeeContext.Provider value={contextValue}>
       {children}
     </EmployeeContext.Provider>
   );

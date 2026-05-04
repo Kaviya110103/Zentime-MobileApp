@@ -6,7 +6,8 @@ import { CameraMode, CameraType, CameraView, useCameraPermissions } from "expo-c
 import { Image } from "expo-image";
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useRef, useState, useContext, useEffect } from "react";
-import { Alert, Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import { Alert, Dimensions, Platform, StyleSheet, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { AppText as Text } from '../components/AppTypography';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
 import { EmployeeContext } from "../context/EmployeeContext";
@@ -165,15 +166,8 @@ export default function MarkTimeInScreen() {
       const responseText = await response.text();
       
       if (response.ok) {
-        Alert.alert("Success", "Time-in marked successfully!", [
-          { 
-            text: "OK", 
-            onPress: () => {
-              setUri(null);
-              router.replace("/MarkAttendance");
-            }
-          }
-        ]);
+        setUri(null);
+        router.replace("/MarkAttendance");
       } else {
         throw new Error(responseText || "Upload failed");
       }
@@ -539,3 +533,4 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
 });
+

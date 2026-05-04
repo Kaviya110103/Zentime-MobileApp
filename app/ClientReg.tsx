@@ -1,15 +1,6 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppTypography';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { buildApiUrl } from '../lib/api';
 
@@ -266,3 +257,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

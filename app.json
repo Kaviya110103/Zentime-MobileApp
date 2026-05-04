@@ -5,7 +5,7 @@
     "version": "1.1.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "scheme": "zentime",
 
@@ -30,6 +30,8 @@
     "android": {
       "package": "com.wingroo.MyNewApp",
       "versionCode": 19,
+      "userInterfaceStyle": "automatic",
+      "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": true,
       "permissions": [
         "INTERNET",

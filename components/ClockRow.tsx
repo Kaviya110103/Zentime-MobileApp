@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import axios from 'axios';
 import React, { useContext, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { AppText as Text } from './AppTypography';
 import { EmployeeContext } from '../context/EmployeeContext';
 import { buildApiUrl } from '../lib/api';
 
@@ -175,4 +176,5 @@ const styles = StyleSheet.create({
 });
 
 export default ClockInfoRow;
+
 

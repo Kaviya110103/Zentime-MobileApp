@@ -256,9 +256,9 @@ import {
     Image,
     Pressable,
     StyleSheet,
-    Text,
     View,
 } from 'react-native';
+import { AppText as Text } from './AppTypography';
 import { EmployeeContext } from '../context/EmployeeContext';
 import { buildApiUrl, withClientId } from '../lib/api';
 

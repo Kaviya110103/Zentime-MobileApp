@@ -1,11 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { AppText as Text } from './AppTypography';
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
 import { EmployeeContext } from '../context/EmployeeContext';
@@ -523,3 +518,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
 });
+

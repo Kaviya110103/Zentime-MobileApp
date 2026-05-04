@@ -1,14 +1,19 @@
 import React, { useEffect, useRef, useContext } from 'react';
-import { View, Text, StyleSheet, Animated, Image, useColorScheme, BackHandler, Alert } from 'react-native';
+import { View, StyleSheet, Animated, BackHandler, Alert } from 'react-native';
+import { AppAnimatedText } from '../components/AppTypography';
 import { useRouter } from 'expo-router';
 import { EmployeeContext } from '../context/EmployeeContext'; // adjust path if needed
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAppTheme } from '../context/AppThemeContext';
+
+const WALKTHROUGH_DONE_KEY = 'walkthroughCompleted';
 
 export default function Index() {
   const imageAnim = useRef(new Animated.Value(0)).current;
   const textAnim = useRef(new Animated.Value(0)).current;
-  const colorScheme = useColorScheme();
   const router = useRouter();
-  const { employee, authReady } = useContext(EmployeeContext);
+  const { employee, adminClient, sessionType, authReady } = useContext(EmployeeContext);
+  const { colors, isDark } = useAppTheme();
   // useEffect(() => {
   //   const backAction = () => {
   //     Alert.alert('Hold on!', 'Are you sure you want to exit the app?', [
@@ -41,24 +46,29 @@ export default function Index() {
     }
 
     // Navigate after animation completes
-    const timer = setTimeout(() => {
-      if (!employee) {
-        router.replace('/EmployeeLogin');
-      } else {
+    const timer = setTimeout(async () => {
+      if (sessionType === 'admin' && adminClient) {
+        router.replace('/AdminDashboard');
+      } else if (sessionType === 'employee' && employee) {
         router.replace('/WelcomeBack');
+      } else {
+        const walkthroughCompleted = await AsyncStorage.getItem(WALKTHROUGH_DONE_KEY);
+        if (walkthroughCompleted === 'true') {
+          router.replace('/EmployeeLogin');
+        } else {
+          router.replace('/Walkthrough');
+        }
       }
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [employee, authReady]);
-
-  const isDarkMode = colorScheme === 'dark';
+  }, [employee, adminClient, sessionType, authReady]);
 
   return (
     <View  //div
       style={[
         styles.container,
-        { backgroundColor: isDarkMode ? '#000' : '#fff' },
+        { backgroundColor: colors.background },
       ]}
     >
       <Animated.Image
@@ -73,9 +83,18 @@ export default function Index() {
         resizeMode="contain"
       />
 
-      <Animated.Text style={[styles.text, { opacity: textAnim }]}>
+      <AppAnimatedText
+        style={[
+          styles.text,
+          {
+            opacity: textAnim,
+            color: colors.text,
+            textShadowColor: isDark ? '#000000' : '#aaa',
+          },
+        ]}
+      >
         ZenTime
-      </Animated.Text>
+      </AppAnimatedText>
     </View>
   );
 }
@@ -94,9 +113,8 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#333',
-    textShadowColor: '#aaa',
     textShadowOffset: { width: 1, height: 2 },
     textShadowRadius: 5,
   },
 });
+

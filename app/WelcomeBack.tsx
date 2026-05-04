@@ -1,5 +1,6 @@
 import React, { useContext } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ImageBackground } from "react-native";
+import { View, StyleSheet, TouchableOpacity, ScrollView, ImageBackground } from 'react-native';
+import { AppText as Text } from '../components/AppTypography';
 import { router } from "expo-router";
 import { EmployeeContext } from "../context/EmployeeContext";
 
@@ -126,3 +127,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+

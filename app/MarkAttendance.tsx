@@ -1,12 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  ImageBackground,
-} from 'react-native';
+import { View, TouchableOpacity, ScrollView, StyleSheet, ImageBackground } from 'react-native';
+import { AppText as Text } from '../components/AppTypography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Feather,
@@ -256,3 +250,4 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 });
+

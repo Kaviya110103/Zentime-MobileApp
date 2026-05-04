@@ -5,23 +5,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 
 import React, { useContext, useEffect, useState } from "react";
-import {
-    Alert,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-    KeyboardAvoidingView,
-  SafeAreaView
-} from "react-native";
+import { Alert, Platform, ScrollView, StyleSheet, TouchableOpacity, View, KeyboardAvoidingView, SafeAreaView } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppTypography';
 import DropDownPicker from "react-native-dropdown-picker";
 import BottomNavBar from "../components/BottomNavBar";
 import { router, useLocalSearchParams, useRouter } from 'expo-router';
 import { EmployeeContext } from "../context/EmployeeContext";
 import { buildApiUrl, withClientId } from "../lib/api";
+import { APP_FONT_FAMILY } from '../lib/typography';
 
 const LeavePermission = () => {
 
@@ -408,10 +399,12 @@ const styles = StyleSheet.create({
   placeholderStyle: {
     color: '#9CA3AF',
     fontSize: 15,
+    fontFamily: APP_FONT_FAMILY,
   },
   dropdownText: {
     color: '#1F2937',
     fontSize: 15,
+    fontFamily: APP_FONT_FAMILY,
   },
   dateRow: {
     flexDirection: 'row',
@@ -514,4 +507,5 @@ const styles = StyleSheet.create({
   });
 
   export default LeavePermission;
+
 

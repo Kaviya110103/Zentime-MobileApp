@@ -3,7 +3,8 @@ import axios from "axios";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams } from "expo-router";
 import React, { useContext, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '../components/AppTypography';
 import { EmployeeContext } from "../context/EmployeeContext";
 import { buildApiUrl } from "../lib/api";
 
@@ -321,3 +322,4 @@ const styles = StyleSheet.create({
 });
 
 export default EmployeeLeavePermission;
+

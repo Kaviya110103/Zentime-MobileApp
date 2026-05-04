@@ -5,19 +5,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useContext, useEffect, useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
-} from "react-native";
+import { ActivityIndicator, Alert, Dimensions, Image, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppTypography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmployeeContext } from "../context/EmployeeContext";
 import { buildApiUrl } from "../lib/api";
@@ -1053,4 +1042,5 @@ const styles = StyleSheet.create({
 });
 
 export default Employee;
+
 

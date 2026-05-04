@@ -1,21 +1,25 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, Image, Dimensions, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Image, Dimensions, TouchableOpacity } from 'react-native';
+import { AppText as Text } from '../components/AppTypography';
 import Swiper from 'react-native-swiper';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
+
+const WALKTHROUGH_DONE_KEY = 'walkthroughCompleted';
 
 const WalkthroughScreen = () => {
-  const navigation = useNavigation();
+  const router = useRouter();
   const swiperRef = useRef<Swiper>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const slides = [
     {
-      image: require('../assets/images/walk2.png'),
+      image: require('../assets/images/walk1.png'),
       title: 'Welcome to ZenTime',
-    description: 'Post your attendance with Time-In, Time-Out and Image capture'
+      description: 'Post your attendance with Time-In, Time-Out and Image capture'
     },
     {
-      image: require('../assets/images/walk1.png'),
+      image: require('../assets/images/walk2.png'),
       title: 'Location Tracking',
       description: 'Your location will be tracked by admin, and attendance is allowed only inside the campus'
     },
@@ -26,11 +30,12 @@ const WalkthroughScreen = () => {
     }
   ];
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentIndex < slides.length - 1) {
       swiperRef.current?.scrollBy(1);
     } else {
-      navigation.navigate('EmployeeLogin' as never);
+      await AsyncStorage.setItem(WALKTHROUGH_DONE_KEY, 'true');
+      router.replace('/EmployeeLogin');
     }
   };
 
@@ -140,3 +145,4 @@ const styles = StyleSheet.create({
 });
 
 export default WalkthroughScreen;
+

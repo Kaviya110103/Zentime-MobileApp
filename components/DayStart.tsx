@@ -1,18 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import axios from "axios";
 import React, { useContext, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
-} from "react-native";
+import { ActivityIndicator, Alert, Modal, SafeAreaView, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from './AppTypography';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationTest from '../app/LocationTest';
 import { isToday, parse } from "date-fns";
 import { EmployeeContext } from "../context/EmployeeContext";
@@ -25,6 +16,7 @@ interface StartDayProps {
 }
 
 export default function StartDayComponent({ employeeId, onDone, onCancel }: StartDayProps) {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [dayStarted, setDayStarted] = useState(false);
@@ -107,7 +99,6 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
         }
       );
       
-      Alert.alert("Success", res.data || "Day started successfully");
       setDayStarted(true);
       setShowLocationModal(false);
       
@@ -158,7 +149,6 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
         }
       );
       
-      Alert.alert("Success", "Reason submitted successfully");
       setShowTimeoutReasonModal(false);
       setTimeoutReason('');
       setMissedTimeoutRecordId(null);
@@ -208,7 +198,6 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
         }
       );
 
-      Alert.alert("Success", response?.data?.message || "Location request submitted and time-in recorded.");
       setShowLocationRequestModal(false);
       setShowLocationModal(false);
       setLocationRequestReason('');
@@ -291,7 +280,12 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
             />
           </View>
           
-          <View style={styles.modalFooter}>
+          <View
+            style={[
+              styles.modalFooter,
+              { paddingBottom: Math.max(insets.bottom, 12) + 10 },
+            ]}
+          >
             <TouchableOpacity
               style={[styles.confirmButton, (!canStartDay || loading) && styles.disabledButton]}
               onPress={() => handleStartDay()}
@@ -496,7 +490,7 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     backgroundColor: '#351153',
-    paddingVertical: 16,
+    paddingVertical: 13,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -549,3 +543,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

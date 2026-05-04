@@ -6,16 +6,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useContext, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppText as Text } from '../components/AppTypography';
 import { buildApiUrl, withClientId } from '../lib/api';
 
 interface AttendanceReport {
@@ -743,3 +735,4 @@ const styles = StyleSheet.create({
 });
 
 export default EmployeeAttendanceReport;
+

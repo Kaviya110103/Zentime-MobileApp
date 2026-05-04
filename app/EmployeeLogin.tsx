@@ -1,20 +1,14 @@
 import { EmployeeContext } from "../context/EmployeeContext";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useContext, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  BackHandler,
-  ImageBackground,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, BackHandler, ImageBackground, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppTypography';
 import { buildApiUrl } from "../lib/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAppTheme } from "../context/AppThemeContext";
+import { notifyEmployeeLogin } from "../lib/employeeNotifications";
+
+const WALKTHROUGH_DONE_KEY = 'walkthroughCompleted';
 
 const EmployeeLogin = () => {
   const [username, setUsername] = useState("");
@@ -27,6 +21,8 @@ const EmployeeLogin = () => {
 
   const router = useRouter();
   const { employee, setEmployee, logout } = useContext(EmployeeContext);
+  const { isDark, colors } = useAppTheme();
+  const placeholderColor = isDark ? "#94a3b8" : "#999";
 
   useFocusEffect(
     useCallback(() => {
@@ -102,7 +98,9 @@ const EmployeeLogin = () => {
 
       if (response.ok) {
         if (data && data.id) {
+          await AsyncStorage.setItem(WALKTHROUGH_DONE_KEY, 'true');
           await setEmployee(data);
+          await notifyEmployeeLogin(data);
           setMessage("Login successful!");
           setMessageColor("#4CAF50");
           router.replace("/WelcomeBack");
@@ -156,6 +154,10 @@ const EmployeeLogin = () => {
     setMessage("");
   };
 
+  const handleOpenAdminLogin = () => {
+    router.push("/AdminLogin");
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.loadingContainer, styles.whiteBackground]}>
@@ -173,66 +175,73 @@ const EmployeeLogin = () => {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.heading}>Employee Login</Text>
         {employee ? (
-          <View style={styles.welcomeBox}>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.welcomeName}>
+          <View style={[styles.welcomeBox, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.welcomeText, { color: colors.text }]}>Welcome back,</Text>
+            <Text style={[styles.welcomeName, { color: colors.primary }]}>
               {employee.name || employee.username || "Employee"}
             </Text>
             <TouchableOpacity
-              style={styles.loginButton}
+              style={[styles.loginButton, { backgroundColor: colors.primary }]}
               onPress={() => router.replace("/MarkAttendance")}
             >
               <Text style={styles.buttonText}>Go to Dashboard</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleLogout}>
-              <Text style={styles.secondaryButtonText}>Logout</Text>
+            <TouchableOpacity style={[styles.secondaryButton, { borderColor: colors.primary }]} onPress={handleLogout}>
+              <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Logout</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.secondaryButton, { borderColor: colors.primary }]} onPress={handleOpenAdminLogin}>
+              <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Login as Admin</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.loginBox}>
-            <Text style={styles.label}>Username*</Text>
+          <View style={[styles.loginBox, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.label, { color: colors.mutedText }]}>Username*</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { borderColor: colors.border, backgroundColor: isDark ? "#0f172a" : "#fff", color: colors.text }]}
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
               placeholder="Enter your username"
-              placeholderTextColor="#999"
+              placeholderTextColor={placeholderColor}
             />
 
-            <Text style={styles.label}>Password*</Text>
-            <View style={styles.passwordContainer}>
+            <Text style={[styles.label, { color: colors.mutedText }]}>Password*</Text>
+            <View style={[styles.passwordContainer, { borderColor: colors.border, backgroundColor: isDark ? "#0f172a" : "#fff" }]}>
               <TextInput
-                style={styles.passwordInput}
+                style={[styles.passwordInput, { color: colors.text }]}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 placeholder="Enter your password"
-                placeholderTextColor="#999"
+                placeholderTextColor={placeholderColor}
               />
               <TouchableOpacity
                 style={styles.showPasswordButton}
                 onPress={toggleShowPassword}
               >
-                <Text style={styles.showPasswordText}>
+                <Text style={[styles.showPasswordText, { color: colors.primary }]}>
                   {showPassword ? "Hide" : "Show"}
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>CompanyCode*</Text>
-            <View style={styles.passwordContainer}>
+            <Text style={[styles.label, { color: colors.mutedText }]}>CompanyCode*</Text>
+            <View style={[styles.passwordContainer, { borderColor: colors.border, backgroundColor: isDark ? "#0f172a" : "#fff" }]}>
               <TextInput
-                style={styles.passwordInput}
+                style={[styles.passwordInput, { color: colors.text }]}
                 value={companyCode}
                 onChangeText={setCompanyCode}
                 placeholder="Enter your companycode"
-                placeholderTextColor="#999"
+                placeholderTextColor={placeholderColor}
               />
             </View>
 
-            <TouchableOpacity style={styles.loginButton} onPress={() => handleLogin()}>
+            <TouchableOpacity style={[styles.loginButton, { backgroundColor: colors.primary }]} onPress={() => handleLogin()}>
               <Text style={styles.buttonText}>LOGIN</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.secondaryButton, { borderColor: colors.primary }]} onPress={handleOpenAdminLogin}>
+              <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Login as Admin</Text>
             </TouchableOpacity>
 
             {message ? (
@@ -405,3 +414,4 @@ const styles = StyleSheet.create({
 });
 
 export default EmployeeLogin;
+

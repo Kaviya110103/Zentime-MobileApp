@@ -5,23 +5,12 @@ import { format, formatDistanceToNow } from 'date-fns';
 // import { format, formatDistanceToNow } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useContext, useEffect, useState } from 'react';
-import {
-    FlatList,
-    Modal,
-    Platform,
-    RefreshControl,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
-} from 'react-native';
+import { FlatList, Modal, Platform, RefreshControl, SafeAreaView, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppTypography';
 import { Avatar, Button, Card, IconButton } from 'react-native-paper';
 import { EmployeeContext } from '../context/EmployeeContext';
 import { buildApiUrl, withClientId } from '../lib/api';
+import { APP_FONT_FAMILY_BOLD } from '../lib/typography';
 
 
 
@@ -122,6 +111,7 @@ const companyCode = employee?.companyCode;
               setSelectedAnnouncement(item);
               setModalVisible(true);
             }}
+            labelStyle={styles.paperButtonLabel}
           >
             View Details
           </Button>
@@ -378,6 +368,10 @@ const styles = StyleSheet.create({
   cardActions: {
     justifyContent: 'flex-end',
   },
+  paperButtonLabel: {
+    fontFamily: APP_FONT_FAMILY_BOLD,
+    fontWeight: 'normal',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -452,6 +446,7 @@ const styles = StyleSheet.create({
 
 
 export default AnnouncementBoard;
+
 
 
 

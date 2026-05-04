@@ -5,17 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 
 import React, { useContext, useState } from "react";
-import {
-    Alert,
-    Dimensions,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { Alert, Dimensions, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppTypography';
 // import EmployeeLeavePermission from "@/components/EmployeeLeavePermission";
 import BottomNavBar from "../components/BottomNavBar";
 
@@ -486,3 +477,4 @@ marginBottom: 100, },
 });
 
 export default EmployeePermission;
+

@@ -1,18 +1,6 @@
 import { Calendar, DateData } from 'react-native-calendars';
-import { 
-  View, 
-  Text, 
-  Modal, 
-  Image, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ScrollView,
-  ActivityIndicator,
-  Dimensions,
-  Alert,
-  Platform,
-  StatusBar
-} from 'react-native';
+import { View, Modal, Image, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Dimensions, Alert, Platform, StatusBar } from 'react-native';
+import { AppText as Text } from '../components/AppTypography';
 import { useState, useEffect, useContext, useMemo } from 'react';
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
@@ -881,3 +869,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

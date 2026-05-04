@@ -5,14 +5,8 @@ import { MaterialIcons } from "@expo/vector-icons";
 import axios from "axios";
 // import { router } from "expo-router";
 import React, { useContext, useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
-} from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppText as Text } from './AppTypography';
 import { NativeStackNavigationProp } from "react-native-screens/lib/typescript/native-stack/types";
 import { router } from 'expo-router';
 import { EmployeeContext } from "../context/EmployeeContext";
@@ -34,7 +28,7 @@ export default function DayCloseComponent({
   const handleDayClose = async () => {
     setLoading(true);
     try {
-      const res = await axios.post(
+      await axios.post(
         buildApiUrl(`/api/attendance/update-day-status`),
         null,
         {
@@ -44,7 +38,6 @@ export default function DayCloseComponent({
           }, employee?.clientId)
         }
       );
-      Alert.alert("Success", res.data);
   // router.push(`/MarkTimeIn?recordId=${recordId}`);
       onDone?.();
     } catch (err: any) {
@@ -149,4 +142,5 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
 });
+
 

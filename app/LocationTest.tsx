@@ -1,13 +1,6 @@
 import React, { useEffect, useState, useCallback, useContext } from 'react';
-import {
-  View,
-  Text,
-  Button,
-  StyleSheet,
-  Alert,
-  Platform,
-  Linking,
-} from 'react-native';
+import { View, StyleSheet, Alert, Platform, Linking, TouchableOpacity } from 'react-native';
+import { AppText as Text } from '../components/AppTypography';
 import * as Location from 'expo-location';
 import axios from 'axios';
 import { EmployeeContext } from '../context/EmployeeContext';
@@ -203,7 +196,9 @@ const LocationTest = ({
 
         {status === 'Inactive' && !showOnlyStatus && nearestLocation && (
           <View style={{ marginTop: 10 }}>
-            <Button title="Get Directions" onPress={openDirections} color="#007aff" />
+            <TouchableOpacity style={styles.directionsButton} onPress={openDirections}>
+              <Text style={styles.directionsButtonText}>Get Directions</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -232,7 +227,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#555',
   },
+  directionsButton: {
+    backgroundColor: '#007aff',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  directionsButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });
 
 export default LocationTest;
+
 

@@ -1,5 +1,6 @@
 import React, { useContext } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { AppText as Text } from './AppTypography';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -115,3 +116,4 @@ const styles = StyleSheet.create({
 });
 
 export default BottomNavigation;
+

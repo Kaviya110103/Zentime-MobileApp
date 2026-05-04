@@ -4,8 +4,10 @@ import { MaterialIcons } from "@expo/vector-icons";
 import axios from "axios";
 import { router } from "expo-router";
 import React, { useContext, useEffect, useState, useCallback } from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import { Alert, StyleSheet, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { AppText as Text } from './AppTypography';
 import { buildApiUrl, withClientId } from "../lib/api";
+import { syncAttendanceNotifications } from "../lib/employeeNotifications";
 
 const AttendanceFlow: React.FC = () => {
   const { employee } = useContext(EmployeeContext);
@@ -14,6 +16,10 @@ const AttendanceFlow: React.FC = () => {
   const [record, setRecord] = useState<Record | null>(null);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [holidayLoading, setHolidayLoading] = useState(true);
+  const [holidayToday, setHolidayToday] = useState<HolidayInfo | null>(null);
+  const [leaveLoading, setLeaveLoading] = useState(true);
+  const [leaveToday, setLeaveToday] = useState(false);
   const [view, setView] = useState<"main" | "start" | "timeIn" | "timeOut" | "closed">("main");
   const [navigationInProgress, setNavigationInProgress] = useState(false);
 
@@ -36,12 +42,24 @@ const AttendanceFlow: React.FC = () => {
       if ((data as any)?.found === false) {
         setRecord(null);
         setView("start");
+        await syncAttendanceNotifications({
+          employee,
+          attendance: null,
+          isWorkingDay: isWorkingDayToday(employee, holidayToday, nowDate()),
+          onLeaveToday: leaveToday,
+        });
         return;
       }
 
       // Validate if the fetched record is for today
       if (data.date === today) {
         setRecord(data);
+        await syncAttendanceNotifications({
+          employee,
+          attendance: data,
+          isWorkingDay: isWorkingDayToday(employee, holidayToday, nowDate()),
+          onLeaveToday: leaveToday,
+        });
         
         // Determine view based on record state
         if (!data.timeIn) {
@@ -57,6 +75,12 @@ const AttendanceFlow: React.FC = () => {
         // No record for today
         setRecord(null);
         setView("start");
+        await syncAttendanceNotifications({
+          employee,
+          attendance: null,
+          isWorkingDay: isWorkingDayToday(employee, holidayToday, nowDate()),
+          onLeaveToday: leaveToday,
+        });
       }
     } catch (error) {
       if ((error as any)?.response?.status !== 404) {
@@ -64,16 +88,85 @@ const AttendanceFlow: React.FC = () => {
       }
       setRecord(null);
       setView("start");
+      await syncAttendanceNotifications({
+        employee,
+        attendance: null,
+        isWorkingDay: isWorkingDayToday(employee, holidayToday, nowDate()),
+        onLeaveToday: leaveToday,
+      });
     } finally {
       if (showLoading) setLoading(false);
       setInitialLoading(false);
     }
-  }, [employeeId, companyCode, today]);
+  }, [employee, employeeId, companyCode, today, employee?.clientId, holidayToday, leaveToday]);
+
+  const fetchTodayHoliday = useCallback(async () => {
+    if (!employeeId || !employee?.clientId) {
+      setHolidayToday(null);
+      setHolidayLoading(false);
+      return;
+    }
+
+    setHolidayLoading(true);
+    try {
+      const now = new Date();
+      const { data } = await axios.get<HolidayInfo[]>(
+        buildApiUrl(`/api/employee/holidays/monthly/${employeeId}/${now.getFullYear()}/${now.getMonth() + 1}`),
+        { params: withClientId({}, employee.clientId) }
+      );
+
+      const holidays = Array.isArray(data) ? data : [];
+      const match = holidays.find((holiday) => isSameDateString(holiday.holidayDate, now)) || null;
+      setHolidayToday(match);
+    } catch (error) {
+      console.log("Holiday fetch failed:", (error as any)?.message);
+      setHolidayToday(null);
+    } finally {
+      setHolidayLoading(false);
+    }
+  }, [employeeId, employee?.clientId]);
+
+  const fetchTodayLeave = useCallback(async () => {
+    if (!employeeId || !employee?.clientId) {
+      setLeaveToday(false);
+      setLeaveLoading(false);
+      return;
+    }
+
+    setLeaveLoading(true);
+    try {
+      const { data } = await axios.get<LeaveInfo[]>(
+        buildApiUrl(`/api/leaves/employee/${employeeId}`, { clientId: employee.clientId })
+      );
+
+      const leaves = Array.isArray(data) ? data : [];
+      const current = nowDate();
+      const isOnApprovedLeaveToday = leaves.some((leave) => {
+        if (!leave) return false;
+        if ((leave.status || "").trim().toLowerCase() !== "approved") return false;
+        if (isPermissionType(leave.leaveType)) return false;
+
+        const start = parseFlexibleDate(leave.startDate || leave.date);
+        const end = parseFlexibleDate(leave.endDate || leave.startDate || leave.date);
+        if (!start || !end) return false;
+        return isDateWithinInclusive(current, start, end);
+      });
+
+      setLeaveToday(isOnApprovedLeaveToday);
+    } catch (error) {
+      console.log("Leave fetch failed:", (error as any)?.message);
+      setLeaveToday(false);
+    } finally {
+      setLeaveLoading(false);
+    }
+  }, [employeeId, employee?.clientId]);
 
   // Initial fetch
   useEffect(() => {
     fetchRecord(true);
-  }, [employeeId]);
+    fetchTodayHoliday();
+    fetchTodayLeave();
+  }, [fetchRecord, fetchTodayHoliday, fetchTodayLeave]);
 
   // Handle navigation based on view
   useEffect(() => {
@@ -148,6 +241,13 @@ const AttendanceFlow: React.FC = () => {
 
   const determineAction = useCallback((): { label: string; action: () => void } => {
     if (!record) {
+      if (holidayToday) {
+        return {
+          label: "Holiday",
+          action: () => {}
+        };
+      }
+
       return {
         label: "Start Day",
         action: () => setView("start")
@@ -179,7 +279,7 @@ const AttendanceFlow: React.FC = () => {
       label: "Day Completed",
       action: () => {}
     };
-  }, [record]);
+  }, [record, holidayToday]);
 
   const handleDayClose = async (recordId: number) => {
     setLoading(true);
@@ -205,7 +305,6 @@ const AttendanceFlow: React.FC = () => {
         { params: withClientId({ recordId, dayStatus: "Completed" }, employee?.clientId) }
       );
       
-      Alert.alert("Success", "Day closed successfully!");
       await fetchRecord(true);
       setView("closed");
     } catch (err: any) {
@@ -224,7 +323,7 @@ const AttendanceFlow: React.FC = () => {
 
   const handleDayStarted = async () => {
     await fetchRecord(true);
-    setView("main");
+    setView("timeIn");
   };
 
   const handleBackToMain = async () => {
@@ -241,8 +340,36 @@ const AttendanceFlow: React.FC = () => {
     );
   }
 
+  if (holidayLoading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#351153" />
+      </View>
+    );
+  }
+
+  if (leaveLoading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#351153" />
+      </View>
+    );
+  }
+
   // Render based on view
   if (view === "start") {
+    if (holidayToday) {
+      return (
+        <View style={styles.centerContainer}>
+          <TouchableOpacity style={[styles.touchIconBox, styles.disabledBox]} disabled>
+            <MaterialIcons name="celebration" size={34} color="#2563EB" />
+            <Text style={[styles.touchText, styles.holidayText]}>Holiday</Text>
+            <Text style={styles.holidaySubText}>{holidayToday.holidayName || "Holiday"}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     return employeeId ? (
       <DayStart 
         employeeId={Number(employeeId)} 
@@ -264,7 +391,7 @@ const AttendanceFlow: React.FC = () => {
   }
 
   const { label } = determineAction();
-  const isDisabled = loading || label === "Day Completed";
+  const isDisabled = loading || label === "Day Completed" || label === "Holiday";
 
   return (
     <View style={styles.centerContainer}>
@@ -278,11 +405,11 @@ const AttendanceFlow: React.FC = () => {
         ) : (
           <>
             <MaterialIcons 
-              name={label === "Start Day" ? "wb-sunny" : "touch-app"} 
+              name={label === "Start Day" ? "wb-sunny" : label === "Holiday" ? "celebration" : "touch-app"} 
               size={38} 
-              color={isDisabled ? "#9CA3AF" : "#351153"} 
+              color={label === "Holiday" ? "#2563EB" : isDisabled ? "#9CA3AF" : "#351153"} 
             />
-            <Text style={[styles.touchText, isDisabled && styles.disabledText]}>
+            <Text style={[styles.touchText, label === "Holiday" ? styles.holidayText : isDisabled && styles.disabledText]}>
               {label}
             </Text>
           </>
@@ -302,6 +429,20 @@ type Record = {
   dayStatus?: string;
   attendanceStatus?: string;
   date?: string;
+};
+
+type HolidayInfo = {
+  holidayDate: string;
+  holidayName: string;
+  holidayType?: string;
+};
+
+type LeaveInfo = {
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+  leaveType?: string;
+  status?: string;
 };
 
 function formatDDMMYYYY(d: Date) {
@@ -327,6 +468,91 @@ function parseTimeStringToMinutes(timeString?: string | null): number | null {
     return null;
   }
   return hours * 60 + minutes;
+}
+
+function isSameDateString(dateStr: string, target: Date) {
+  if (!dateStr) return false;
+  const safe = dateStr.trim();
+  const yyyyMmDd = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`;
+  const ddMmYyyy = formatDDMMYYYY(target);
+  return safe === yyyyMmDd || safe === ddMmYyyy;
+}
+
+function isPermissionType(leaveType?: string | null) {
+  return String(leaveType ?? "").trim().toLowerCase().includes("permission");
+}
+
+function parseFlexibleDate(raw?: string | null): Date | null {
+  if (!raw) return null;
+  const value = raw.trim();
+
+  const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const dt = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  const dmy = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (dmy) {
+    const dt = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isDateWithinInclusive(target: Date, start: Date, end: Date) {
+  const t = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
+  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+  return t >= Math.min(s, e) && t <= Math.max(s, e);
+}
+
+function nowDate() {
+  return new Date();
+}
+
+function parseWeekOffDay(raw?: string | null): number | null {
+  if (!raw) return null;
+  const normalized = raw.trim().toUpperCase();
+  if (normalized.startsWith("SUN")) return 0;
+  if (normalized.startsWith("MON")) return 1;
+  if (normalized.startsWith("TUE")) return 2;
+  if (normalized.startsWith("WED")) return 3;
+  if (normalized.startsWith("THU")) return 4;
+  if (normalized.startsWith("FRI")) return 5;
+  if (normalized.startsWith("SAT")) return 6;
+  return null;
+}
+
+function isWorkingDayToday(
+  employee: any,
+  holidayToday: HolidayInfo | null,
+  current: Date
+): boolean {
+  if (holidayToday) {
+    return false;
+  }
+
+  const leavePolicy = String(employee?.leavePolicyType ?? "").trim().toUpperCase();
+  const weekOff = String(employee?.weekOff ?? "").trim().toUpperCase();
+  const day = current.getDay();
+
+  const weekendOff =
+    leavePolicy.includes("WEEKEND") ||
+    (leavePolicy.includes("SAT") && leavePolicy.includes("SUN")) ||
+    (weekOff.includes("SAT") && weekOff.includes("SUN"));
+
+  if (weekendOff) {
+    return day !== 0 && day !== 6;
+  }
+
+  const singleWeekOff = parseWeekOffDay(employee?.weekOff);
+  if (singleWeekOff == null) {
+    return day !== 0;
+  }
+  return day !== singleWeekOff;
 }
 
 const styles = StyleSheet.create({
@@ -363,7 +589,17 @@ const styles = StyleSheet.create({
   disabledText: {
     color: "#9CA3AF",
   },
+  holidayText: {
+    color: "#2563EB",
+  },
+  holidaySubText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#4B5563",
+    textAlign: "center",
+  },
 });
 
 export default AttendanceFlow;
+
 

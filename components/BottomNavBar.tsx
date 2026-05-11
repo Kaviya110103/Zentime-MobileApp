@@ -20,7 +20,7 @@ type BottomNavItemProps = {
 const BottomNavItem: React.FC<BottomNavItemProps> = ({ icon, label, active, onPress }) => (
   <TouchableOpacity style={styles.navItem} onPress={onPress}>
     {React.cloneElement(icon, {
-      size: 24,
+      size: 20,
       color: active ? 'white' : '#D9B3FF',
     })}
     <Text style={[styles.navLabel, active && { color: 'white' }]}>{label}</Text>
@@ -36,7 +36,7 @@ const BottomNavigation: React.FC<BottomNavBarProps> = ({ activeTab }) => {
   const bottomInset = Math.max(insets.bottom, 8);
 
   return (
-    <View style={[styles.bottomNav, { height: 62 + bottomInset, paddingBottom: bottomInset }]}> 
+    <View style={[styles.bottomNav, { height: 56 + bottomInset, paddingBottom: bottomInset }]}> 
       <BottomNavItem
         icon={<FontAwesome5 name="home" />}
         label="Home"
@@ -105,12 +105,12 @@ const styles = StyleSheet.create({
   },
   navItem: {
     alignItems: 'center',
-    padding: 8,
+    padding: 6,
   },
   navLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#A0AEC0',
-    marginTop: 4,
+    marginTop: 3,
     fontWeight: '600',
   },
 });

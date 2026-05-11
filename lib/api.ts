@@ -1,6 +1,6 @@
 type QueryValue = string | number | boolean | null | undefined;
 
-const DEFAULT_BASE_URL = "http://192.168.1.32:8000";
+const DEFAULT_BASE_URL = "http://192.168.1.59:8080";
 
 function normalizeBaseUrl(rawBaseUrl: string): string {
   // Prevent runtime URL parsing errors from accidental spaces in env/default values.
@@ -8,6 +8,34 @@ function normalizeBaseUrl(rawBaseUrl: string): string {
 }
 
 export const API_BASE_URL = normalizeBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_BASE_URL);
+
+export function resolveAssetUrl(rawUrl?: string | null): string {
+  const value = (rawUrl || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  if (value.startsWith("data:") || value.startsWith("file://")) {
+    return value;
+  }
+
+  // Backend may return localhost links that are unreachable from real devices.
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//i.test(value)) {
+    try {
+      const parsed = new URL(value);
+      return `${API_BASE_URL}${parsed.pathname}${parsed.search}`;
+    } catch {
+      return value;
+    }
+  }
+
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  const normalizedPath = value.startsWith("/") ? value : `/${value}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+}
 
 export function buildApiUrl(
   path: string,

@@ -23,8 +23,6 @@ const AttendanceFlow: React.FC = () => {
   const [view, setView] = useState<"main" | "start" | "timeIn" | "timeOut" | "closed">("main");
   const [navigationInProgress, setNavigationInProgress] = useState(false);
 
-  const today = formatDDMMYYYY(new Date());
-
   // Fetch record with better error handling
   const fetchRecord = useCallback(async (showLoading = true) => {
     if (!employeeId || !companyCode) {
@@ -36,7 +34,7 @@ const AttendanceFlow: React.FC = () => {
     
     try {
       const { data } = await axios.get<Record>(
-        buildApiUrl(`/api/attendance/latest/${employeeId}`, { clientId: employee?.clientId })
+        buildApiUrl(`/api/attendance/latest-today-or-yesterday/${employeeId}`, { clientId: employee?.clientId })
       );
 
       if ((data as any)?.found === false) {
@@ -51,8 +49,8 @@ const AttendanceFlow: React.FC = () => {
         return;
       }
 
-      // Validate if the fetched record is for today
-      if (data.date === today) {
+      // Validate if the fetched record is for today (supports both dd/MM/yyyy and yyyy-MM-dd)
+      if (isSameDateString(String(data.date || ""), nowDate())) {
         setRecord(data);
         await syncAttendanceNotifications({
           employee,
@@ -98,7 +96,7 @@ const AttendanceFlow: React.FC = () => {
       if (showLoading) setLoading(false);
       setInitialLoading(false);
     }
-  }, [employee, employeeId, companyCode, today, employee?.clientId, holidayToday, leaveToday]);
+  }, [employee, employeeId, companyCode, employee?.clientId, holidayToday, leaveToday]);
 
   const fetchTodayHoliday = useCallback(async () => {
     if (!employeeId || !employee?.clientId) {

@@ -120,6 +120,7 @@ function LayoutContent() {
           <Stack.Screen name="LeavePermission" options={{ headerShown: false }} />
           <Stack.Screen name="AllAnnouncements" options={{ headerShown: false }} />
           <Stack.Screen name="EmployeeCalendar" options={{ headerShown: false }} />
+          <Stack.Screen name="SwapWeekoff" options={{ headerShown: false }} />
           <Stack.Screen name="EmployeeLeavePermission" options={{ headerShown: false }} />
           <Stack.Screen name="LocationTest" options={{ headerShown: false }} />
           {/* <Stack.Scr    een name="Leaverequest" options={{ headerShown: false }} /> */}

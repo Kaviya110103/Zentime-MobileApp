@@ -67,7 +67,8 @@ const MarkAttendance = () => {
             <View style={styles.gridIcons}>
               {[
                 [MaterialIcons, 'home', 'Status', '#FF6B6B'],
-                [Feather, 'calendar', 'SwapSchedule', '#4ECDC4'],
+                [Feather, 'calendar', 'Calendar', '#4ECDC4'],
+                [Feather, 'refresh-cw', 'Swap Weekoff', '#22C55E'],
                 [MaterialIcons, 'campaign', 'Announcement', '#45B7D1'],
                 [MaterialCommunityIcons, 'file-document-outline', 'Report', '#A78BFA'],
               ].map(([Icon, iconName, label, iconColor], index) => (
@@ -75,11 +76,13 @@ const MarkAttendance = () => {
                   key={index}
                   style={styles.iconItem}
                   onPress={() => {
-                    if (label === 'SwapSchedule') {
+                    if (label === 'Calendar') {
                       router.push({
                         pathname: '/EmployeeCalendar',
                         params: { employeeId: employeeId.toString() }
                       });
+                    } else if (label === 'Swap Weekoff') {
+                      router.push('/SwapWeekoff');
                     } else if (label === 'Status') {
                       router.push({
                         pathname: '/EmployeeLeavePermission',
@@ -100,7 +103,7 @@ const MarkAttendance = () => {
                   <View style={styles.iconWrap}>
                     {React.createElement(Icon as React.ComponentType<any>, {
                       name: iconName,
-                      size: 28,
+                      size: 22,
                       color: iconColor,
                     })}
                   </View>
@@ -153,7 +156,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 8,
     color: 'white',
-    fontSize: 10,
+    fontSize: 9,
   },
   Empinfo: {
     marginTop: 25,
@@ -207,38 +210,42 @@ const styles = StyleSheet.create({
   },
   gridIcons: {
     backgroundColor: 'white',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+    paddingTop: 4,
     borderBlockColor: 'blue',
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     justifyContent: 'space-between',
-    height: 100,
+    alignItems: 'flex-start',
+    minHeight: 108,
   },
   textlocation: {
     display: 'none',
   },
   iconItem: {
-    width: '24%',
+    width: '19%',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
     borderColor: 'white',
     borderWidth: 1,
     borderRadius: 8,
     backgroundColor: 'white',
-    padding: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
     boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
   },
   iconLabel: {
-    fontSize: 10,
+    fontSize: 8,
+    lineHeight: 10,
     color: '#333',
-    marginTop: 4,
+    marginTop: 3,
     textAlign: 'center',
   },
   iconWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 32,
+    minHeight: 24,
   },
   botoombox: {
     backgroundColor: 'white',

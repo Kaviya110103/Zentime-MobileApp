@@ -9,7 +9,7 @@ import { ActivityIndicator, Alert, Dimensions, Image, Modal, ScrollView, StyleSh
 import { AppText as Text, AppTextInput as TextInput } from '../components/AppTypography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmployeeContext } from "../context/EmployeeContext";
-import { buildApiUrl } from "../lib/api";
+import { buildApiUrl, resolveAssetUrl } from "../lib/api";
 
 const { width, height } = Dimensions.get("window");
 const isDesktop = width >= 768;
@@ -234,7 +234,7 @@ const Employee = () => {
   }, [employee]);
 
   const pickImageAndUpload = useCallback(async () => {
-    if (!companyCode || !employeeId) return;
+    if (!employeeId) return;
 
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
@@ -250,38 +250,51 @@ const Employee = () => {
       const selectedAsset = result.assets[0];
 
       try {
+        const uploadForm = new FormData();
+        const uriParts = selectedAsset.uri.split("/");
+        const fileName = uriParts[uriParts.length - 1] || `profile-${employeeId}.jpg`;
+        const ext = (fileName.split(".").pop() || "jpg").toLowerCase();
+        const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+
+        uploadForm.append("file", {
+          uri: selectedAsset.uri,
+          name: fileName,
+          type: mimeType,
+        } as any);
+
         const response = await fetch(
-          buildApiUrl(`/api/employees/${employeeId}/profile-image`, { clientId }),
+          buildApiUrl(`/api/employees/${employeeId}/upload-image`, { clientId }),
           {
             method: "PUT",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: `imageUrl=${encodeURIComponent(selectedAsset.uri)}`,
+            body: uploadForm,
           }
         );
 
-        if (response.ok) {
-          alert("Image uploaded successfully!");
-
-          // Refresh employee data
-          const updatedResponse = await fetch(
-            buildApiUrl(`/api/employees/${employeeId}`, { clientId })
-          );
-          if (updatedResponse.ok) {
-            const updatedData = await updatedResponse.json();
-            setEmployee(updatedData);
-            setFormData(updatedData);
-          }
-        } else {
-          alert("Failed to upload image.");
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(errText || "Failed to upload image");
         }
-      } catch (err) {
+
+        Alert.alert("Success", "Image uploaded successfully");
+
+        // Refresh employee data to keep context and admin panel data in sync.
+        const updatedResponse = await fetch(
+          buildApiUrl(`/api/employees/${employeeId}`, { clientId })
+        );
+        if (updatedResponse.ok) {
+          const updatedData = await updatedResponse.json();
+          setEmployee(updatedData);
+          setFormData((prev) => ({
+            ...(updatedData as Partial<Employee>),
+            password: prev.password ?? "",
+          }));
+        }
+      } catch (err: any) {
         console.error(err);
-        alert("An error occurred during upload.");
+        Alert.alert("Error", err?.message || "An error occurred during image upload.");
       }
     }
-  }, [employeeId, clientId, companyCode, setEmployee]);
+  }, [employeeId, clientId, setEmployee]);
 
   if (loading) {
     return (
@@ -370,7 +383,7 @@ const Employee = () => {
             <View style={styles.profileImageContainer}>
               <Image
                 source={{ 
-                  uri: employee.profileImage || 'https://via.placeholder.com/100'
+                  uri: resolveAssetUrl(employee.profileImage) || 'https://via.placeholder.com/100'
                 }}
                 style={{
                   width: 100,

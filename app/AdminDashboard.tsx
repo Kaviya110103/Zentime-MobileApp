@@ -93,6 +93,20 @@ function getGreetingLabel(hour: number): string {
   return "Good Evening";
 }
 
+function getApiErrorMessage(error: any, fallback: string): string {
+  const responseData = error?.response?.data;
+  if (typeof responseData === "string" && responseData.trim().length > 0) {
+    return responseData.trim();
+  }
+  if (responseData?.message) {
+    return String(responseData.message);
+  }
+  if (error?.message) {
+    return String(error.message);
+  }
+  return fallback;
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const { adminClient, sessionType, authReady, logout } = useContext(EmployeeContext);
@@ -350,7 +364,10 @@ export default function AdminDashboard() {
     } catch (error) {
       setLeaves(previousLeaves);
       console.error("Leave status update failed", error);
-      Alert.alert("Error", `Unable to mark request as ${status}.`);
+      Alert.alert(
+        "Error",
+        getApiErrorMessage(error, `Unable to mark request as ${status}.`)
+      );
     }
   };
 

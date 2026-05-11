@@ -260,7 +260,7 @@ import {
 } from 'react-native';
 import { AppText as Text } from './AppTypography';
 import { EmployeeContext } from '../context/EmployeeContext';
-import { buildApiUrl, withClientId } from '../lib/api';
+import { buildApiUrl, resolveAssetUrl, withClientId } from '../lib/api';
 
 interface Employee {
   position: ReactNode;
@@ -401,7 +401,7 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     return <Text style={styles.noData}>No employee data found.</Text>;
 
   const profileImageSource = employees.profileImage
-    ? { uri: employees.profileImage }
+    ? { uri: resolveAssetUrl(employees.profileImage) }
     : require('../assets/images/empimage.jpg');
 
   return (

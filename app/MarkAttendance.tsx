@@ -123,6 +123,7 @@ const MarkAttendance = () => {
             onAddressChange={setCurrentAddress}
             showOnlyStatus={true}
             inModal={false}
+            watchMode="once"
           />
         </View>
       <BottomNavBar activeTab="Home" />

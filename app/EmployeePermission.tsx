@@ -1,28 +1,20 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from "axios";
 import { LinearGradient } from 'expo-linear-gradient';
-// import { Calendar, CircleCheck as CheckCircle, Clock, FileText, Send } from 'lucide-react-native';
-import { Feather, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useContext, useState } from "react";
-import { Alert, Dimensions, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { AppText as Text, AppTextInput as TextInput } from '../components/AppTypography';
-// import EmployeeLeavePermission from "@/components/EmployeeLeavePermission";
 import BottomNavBar from "../components/BottomNavBar";
-
-const { width } = Dimensions.get('window');
-
-// const EmployeePermission = () => {
-//   const route = useRoute<RouteProp<RootStackParamList, 'EmployeePermission'>>();
-//   const { employeeId } = route.params;
 import { EmployeeContext } from "../context/EmployeeContext";
 import { router, useLocalSearchParams } from 'expo-router';
 import { buildApiUrl, withClientId } from "../lib/api";
 
 const EmployeePermission = () => {
-   const { recordId } = useLocalSearchParams();
- const {  employee, setEmployee } = useContext(EmployeeContext);
+  const { recordId } = useLocalSearchParams();
+  const { employee } = useContext(EmployeeContext);
   const employeeId = employee?.id;
+
   const [leaveType] = useState("permission");
   const [reason, setReason] = useState("");
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -30,9 +22,17 @@ const EmployeePermission = () => {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-const companyCode = employee?.companyCode;
-  const [showDatePicker, setShowDatePicker] = useState({ start: false, end: false });
+
+  const [showDatePicker, setShowDatePicker] = useState({ start: false });
   const [showTimePicker, setShowTimePicker] = useState({ start: false, end: false });
+
+  const showWebAwareAlert = (title: string, message: string) => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(`${title}\n\n${message}`);
+      return;
+    }
+    Alert.alert(title, message);
+  };
 
   const formatDate = (date: Date) => {
     return `${String(date.getDate()).padStart(2, "0")}/${String(
@@ -45,6 +45,30 @@ const companyCode = employee?.companyCode;
       date.getMinutes()).padStart(2, "0")}`;
   };
 
+  const toWebDateInputValue = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+  const parseWebDateInput = (raw: string): Date | null => {
+    const parsed = new Date(`${raw}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const toWebTimeInputValue = (date: Date) =>
+    `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+  const parseWebTimeInput = (raw: string): Date | null => {
+    const match = /^(\d{2}):(\d{2})$/.exec(raw);
+    if (!match) return null;
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (Number.isNaN(hours) || Number.isNaN(minutes) || hours > 23 || minutes > 59) {
+      return null;
+    }
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
+
   const getTimeDifference = (start: Date, end: Date) => {
     const diffMs = end.getTime() - start.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -54,12 +78,12 @@ const companyCode = employee?.companyCode;
 
   const handleSubmit = async () => {
     if (!leaveType || !startDate || !endDate || !startTime || !endTime) {
-      Alert.alert("Missing Information", "Please fill all required fields marked with *");
+      showWebAwareAlert("Missing Information", "Please fill all required fields marked with *");
       return;
     }
 
     if (endTime <= startTime) {
-      Alert.alert("Invalid Time", "End time must be after start time");
+      showWebAwareAlert("Invalid Time", "End time must be after start time");
       return;
     }
 
@@ -75,51 +99,42 @@ const companyCode = employee?.companyCode;
       endTime: formatTime(endTime),
     };
 
-   try {
-  await axios.post(
-    buildApiUrl(`/api/leaves/create`),
-    formData,
-    {
-      params: withClientId({ employeeId }, employee?.clientId),
+    try {
+      await axios.post(
+        buildApiUrl(`/api/leaves/create`),
+        formData,
+        {
+          params: withClientId({ employeeId }, employee?.clientId),
+        }
+      );
+
+      showWebAwareAlert(
+        "Success",
+        "Your permission request has been submitted successfully and is now pending approval."
+      );
+
+      setReason("");
+      setStartDate(null);
+      setEndDate(null);
+      setStartTime(null);
+      setEndTime(null);
+
+      if (recordId) {
+        router.replace(`/MarkTimeOut?recordId=${recordId}`);
+      }
+    } catch (error) {
+      console.error("Error submitting form:", error);
+      showWebAwareAlert(
+        "Submission Failed",
+        "Unable to submit your request. Please check your connection and try again."
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-  );
-
-  Alert.alert(
-    "Success! 🎉",
-    "Your permission request has been submitted successfully and is now pending approval.",
-    [
-      {
-        text: "OK",
-        onPress: () => {
-          if (recordId) {
-            router.push(`/MarkTimeOut?recordId=${recordId}`);
-          }
-        },
-      },
-    ]
-  );
-
-  // Reset form
-  setReason("");
-  setStartDate(null);
-  setEndDate(null);
-  setStartTime(null);
-  setEndTime(null);
-} catch (error) {
-  console.error("Error submitting form:", error);
-  Alert.alert(
-    "Submission Failed",
-    "Unable to submit your request. Please check your connection and try again.",
-    [{ text: "Retry", style: "default" }]
-  );
-} finally {
-  setIsSubmitting(false);
-}
   };
 
   return (
     <View style={styles.mainContainer}>
-      {/* Header */}
       <LinearGradient
         colors={['#7726B9', '#5E1D9E']}
         style={styles.header}
@@ -127,35 +142,50 @@ const companyCode = employee?.companyCode;
         end={{ x: 1, y: 0 }}
       >
         <Text style={styles.headerTitle}>Permission Request</Text>
-        {/* <Text style={styles.headerSubtitle}>Submit your time-off permission</Text> */}
       </LinearGradient>
 
-      <ScrollView 
-        contentContainerStyle={styles.container} 
+      <ScrollView
+        contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={true}
       >
-        {/* Start Date Row */}
         <View style={styles.inputRow}>
-     <MaterialCommunityIcons name="calendar" size={30} color="purple" />
+          <MaterialCommunityIcons name="calendar" size={30} color="purple" />
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Start Date <Text style={styles.required}>*</Text></Text>
-            <TouchableOpacity
-              onPress={() => setShowDatePicker({ ...showDatePicker, start: true })}
-              style={styles.inputField}
-            >
-              <Text style={[styles.inputText, startDate && styles.selectedText]}>
-                {startDate ? formatDate(startDate) : "Select date"}
-              </Text>
-            </TouchableOpacity>
-            {showDatePicker.start && (
+            {Platform.OS === "web" ? (
+              <View style={styles.inputField}>
+                <input
+                  type="date"
+                  value={startDate ? toWebDateInputValue(startDate) : ""}
+                  min={toWebDateInputValue(new Date())}
+                  onChange={(event: any) => {
+                    const parsed = parseWebDateInput(String(event?.target?.value ?? ""));
+                    if (!parsed) return;
+                    setStartDate(parsed);
+                    setEndDate(parsed);
+                  }}
+                  style={webPickerInputStyle}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowDatePicker({ start: true })}
+                style={styles.inputField}
+              >
+                <Text style={[styles.inputText, startDate && styles.selectedText]}>
+                  {startDate ? formatDate(startDate) : "Select date"}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {showDatePicker.start && Platform.OS !== "web" && (
               <DateTimePicker
                 value={startDate || new Date()}
                 mode="date"
                 display={Platform.OS === "ios" ? "inline" : "default"}
                 minimumDate={new Date()}
-                onChange={(event, selectedDate) => {
-                  setShowDatePicker({ ...showDatePicker, start: false });
+                onChange={(_, selectedDate) => {
+                  setShowDatePicker({ start: false });
                   if (selectedDate) {
                     setStartDate(selectedDate);
                     setEndDate(selectedDate);
@@ -166,9 +196,8 @@ const companyCode = employee?.companyCode;
           </View>
         </View>
 
-        {/* End Date Row (Auto-filled) */}
         <View style={styles.inputRow}>
-             <MaterialCommunityIcons name="calendar" size={30} color="purple" />
+          <MaterialCommunityIcons name="calendar" size={30} color="purple" />
           <View style={styles.inputContainer}>
             <Text style={[styles.label, { color: '#9CA3AF' }]}>End Date <Text style={styles.autoFilled}>(Auto)</Text></Text>
             <View style={[styles.inputField, styles.disabledField]}>
@@ -179,25 +208,39 @@ const companyCode = employee?.companyCode;
           </View>
         </View>
 
-        {/* Start Time Row */}
         <View style={styles.inputRow}>
-            <Feather name="clock" size={30} color="purple" />
+          <Feather name="clock" size={30} color="purple" />
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Start Time <Text style={styles.required}>*</Text></Text>
-            <TouchableOpacity
-              onPress={() => setShowTimePicker({ ...showTimePicker, start: true })}
-              style={styles.inputField}
-            >
-              <Text style={[styles.inputText, startTime && styles.selectedText]}>
-                {startTime ? formatTime(startTime) : "Select time"}
-              </Text>
-            </TouchableOpacity>
-            {showTimePicker.start && (
+            {Platform.OS === "web" ? (
+              <View style={styles.inputField}>
+                <input
+                  type="time"
+                  value={startTime ? toWebTimeInputValue(startTime) : ""}
+                  onChange={(event: any) => {
+                    const parsed = parseWebTimeInput(String(event?.target?.value ?? ""));
+                    if (!parsed) return;
+                    setStartTime(parsed);
+                  }}
+                  style={webPickerInputStyle}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowTimePicker({ ...showTimePicker, start: true })}
+                style={styles.inputField}
+              >
+                <Text style={[styles.inputText, startTime && styles.selectedText]}>
+                  {startTime ? formatTime(startTime) : "Select time"}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {showTimePicker.start && Platform.OS !== "web" && (
               <DateTimePicker
                 value={startTime || new Date()}
                 mode="time"
                 display="default"
-                onChange={(event, selectedTime) => {
+                onChange={(_, selectedTime) => {
                   setShowTimePicker({ ...showTimePicker, start: false });
                   if (selectedTime) setStartTime(selectedTime);
                 }}
@@ -206,33 +249,39 @@ const companyCode = employee?.companyCode;
           </View>
         </View>
 
-        {/* End Time Row */}
-
-
-
-
-
-
-
-
         <View style={styles.inputRow}>
-            <Feather name="clock" size={30} color="purple" />
+          <Feather name="clock" size={30} color="purple" />
           <View style={styles.inputContainer}>
             <Text style={styles.label}>End Time <Text style={styles.required}>*</Text></Text>
-            <TouchableOpacity
-              onPress={() => setShowTimePicker({ ...showTimePicker, end: true })}
-              style={styles.inputField}
-            >
-              <Text style={[styles.inputText, endTime && styles.selectedText]}>
-                {endTime ? formatTime(endTime) : "Select time"}
-              </Text>
-            </TouchableOpacity>
-            {showTimePicker.end && (
+            {Platform.OS === "web" ? (
+              <View style={styles.inputField}>
+                <input
+                  type="time"
+                  value={endTime ? toWebTimeInputValue(endTime) : ""}
+                  onChange={(event: any) => {
+                    const parsed = parseWebTimeInput(String(event?.target?.value ?? ""));
+                    if (!parsed) return;
+                    setEndTime(parsed);
+                  }}
+                  style={webPickerInputStyle}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowTimePicker({ ...showTimePicker, end: true })}
+                style={styles.inputField}
+              >
+                <Text style={[styles.inputText, endTime && styles.selectedText]}>
+                  {endTime ? formatTime(endTime) : "Select time"}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {showTimePicker.end && Platform.OS !== "web" && (
               <DateTimePicker
                 value={endTime || new Date()}
                 mode="time"
                 display="default"
-                onChange={(event, selectedTime) => {
+                onChange={(_, selectedTime) => {
                   setShowTimePicker({ ...showTimePicker, end: false });
                   if (selectedTime) setEndTime(selectedTime);
                 }}
@@ -241,7 +290,6 @@ const companyCode = employee?.companyCode;
           </View>
         </View>
 
-        {/* Duration Display */}
         {startTime && endTime && (
           <View style={styles.durationRow}>
             <View style={styles.iconContainer}>
@@ -255,13 +303,11 @@ const companyCode = employee?.companyCode;
           </View>
         )}
 
-
-        {/* Reason Row */}
         <View style={styles.inputRow}>
-             <Feather name="file-text" size={30} color="purple" />
+          <Feather name="file-text" size={30} color="purple" />
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Reason <Text style={styles.optional}>(Optional)</Text>  <Text style={styles.characterCount}>{reason.length}/500</Text>
-</Text>
+            </Text>
 
             <TextInput
               style={[styles.inputField, styles.textArea]}
@@ -277,9 +323,8 @@ const companyCode = employee?.companyCode;
           </View>
         </View>
 
-        {/* Submit Button */}
-        <TouchableOpacity 
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]} 
+        <TouchableOpacity
+          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
           onPress={handleSubmit}
           disabled={isSubmitting}
         >
@@ -293,44 +338,48 @@ const companyCode = employee?.companyCode;
               <Text style={styles.submitText}>Submitting...</Text>
             ) : (
               <>
-               <Feather name="send" size={30} color="white" />
+                <Feather name="send" size={30} color="white" />
                 <Text style={styles.submitText}>Submit Request</Text>
               </>
             )}
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Help Text */}
         <View style={styles.helpRow}>
-                 <Feather name="check-circle" size={30} color="green" />
-
+          <Feather name="check-circle" size={30} color="green" />
           <View style={styles.inputContainer}>
             <Text style={styles.helpText}>
               Your permission request will be reviewed by HR and you'll receive a notification once approved.
             </Text>
           </View>
-          
         </View>
-         {/* <EmployeeLeavePermission employeeId={employeeId} /> */}
-          
-
       </ScrollView>
-       <View style={{ flex: 1, paddingBottom: 80 }}>
-  {/* Your page content here */}
-  <BottomNavBar activeTab="Permission" />
-</View>
+
+      <View style={{ flex: 1, paddingBottom: 80 }}>
+        <BottomNavBar activeTab="Permission" />
+      </View>
     </View>
   );
 };
 
+const webPickerInputStyle = {
+  width: "100%",
+  height: 44,
+  borderWidth: 0,
+  borderStyle: "none",
+  outlineStyle: "none",
+  backgroundColor: "transparent",
+  color: "#1F2937",
+  fontSize: 15,
+} as const;
+
 const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
-    marginTop:0 ,
+    marginTop: 0,
     backgroundColor: '#ffffff',
   },
   header: {
-    
     paddingTop: 20,
     paddingBottom: 20,
     paddingHorizontal: 20,
@@ -344,16 +393,11 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginBottom: 4,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#ffffff',
-    opacity: 0.9,
-  },
   container: {
     padding: 10,
     paddingTop: 28,
-marginBottom: 100, },
-
+    marginBottom: 100,
+  },
   inputRow: {
     flexDirection: 'row',
     marginBottom: 18,
@@ -371,7 +415,6 @@ marginBottom: 100, },
   },
   helpRow: {
     flexDirection: 'row',
-    // marginBottom: 20,
     alignItems: 'flex-start',
     backgroundColor: '#F5F3FF',
     padding: 12,
@@ -477,4 +520,3 @@ marginBottom: 100, },
 });
 
 export default EmployeePermission;
-

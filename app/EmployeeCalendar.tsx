@@ -58,9 +58,8 @@ export default function EmployeeCalendar() {
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const { employee } = useContext(EmployeeContext);
-  const companyCode = employee?.companyCode;
   const clientId = employee?.clientId;
-  const employeeId = typeof employee?.id === 'number' ? employee.id : 0;
+  const employeeId = Number(employee?.id);
   const [isLoadingMonthly, setIsLoadingMonthly] = useState(false);
   
   const [isEmployeeReady, setIsEmployeeReady] = useState(false);
@@ -75,17 +74,30 @@ export default function EmployeeCalendar() {
     return merged;
   }, [attendanceMarkedDates, holidayMarkedDates]);
 
+  const normalizeDateKey = (raw?: string | null): string | null => {
+    const value = String(raw || '').trim();
+    if (!value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+    if (dmy) {
+      return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+    }
+    return null;
+  };
+
   useEffect(() => {
-    if (employee?.id && employee?.companyCode) {
+    if (Number.isFinite(employeeId) && employeeId > 0) {
       setIsEmployeeReady(true);
       const today = new Date();
       fetchMonthlyAttendance(today.getMonth() + 1, today.getFullYear());
       fetchMonthlyHolidays(today.getMonth() + 1, today.getFullYear());
+    } else {
+      setIsEmployeeReady(false);
     }
-  }, [employee]);
+  }, [employeeId]);
 
   const fetchMonthlyAttendance = async (month: number, year: number) => {
-    if (!employeeId) return;
+    if (!Number.isFinite(employeeId) || employeeId <= 0) return;
     
     setIsLoadingMonthly(true);
     try {
@@ -108,14 +120,7 @@ export default function EmployeeCalendar() {
           if (!item.date) return;
           
           try {
-            let formattedDate = '';
-            if (item.date.includes('/')) {
-              const [dd, mm, yyyy] = item.date.split('/');
-              formattedDate = `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
-            } else if (item.date.includes('-')) {
-              formattedDate = item.date;
-            }
-            
+            const formattedDate = normalizeDateKey(item.date);
             if (!formattedDate) return;
             
             let dotColor = '#757575';
@@ -150,7 +155,7 @@ export default function EmployeeCalendar() {
   };
 
   const fetchMonthlyHolidays = async (month: number, year: number) => {
-    if (!employeeId) return;
+    if (!Number.isFinite(employeeId) || employeeId <= 0) return;
 
     try {
       const res = await axios.get(
@@ -169,9 +174,10 @@ export default function EmployeeCalendar() {
       const holidayMarks: MarkedDates = {};
 
       holidayList.forEach((holiday) => {
-        if (!holiday?.holidayDate) return;
-        holidayMap[holiday.holidayDate] = holiday;
-        holidayMarks[holiday.holidayDate] = {
+        const normalized = normalizeDateKey(holiday?.holidayDate);
+        if (!normalized) return;
+        holidayMap[normalized] = holiday;
+        holidayMarks[normalized] = {
           marked: true,
           dotColor: holiday.holidayType === 'HALF' ? '#8B5CF6' : '#1976D2',
           selectedDotColor: '#FFFFFF',

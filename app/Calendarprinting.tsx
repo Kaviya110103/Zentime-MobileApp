@@ -34,7 +34,7 @@ const EmployeeAttendanceReport = () => {
   const [reportData, setReportData] = useState<AttendanceReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [currentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [printData, setPrintData] = useState<AttendanceReport[]>([]);
   const [client, setClient] = useState<any>(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -50,7 +50,8 @@ const EmployeeAttendanceReport = () => {
   useEffect(() => {
     if (employee) {
       setCompanyCode(employee?.companyCode || '');
-      setEmployeeId(typeof employee?.id === 'number' ? employee.id : 0);
+      const normalizedEmployeeId = Number(employee?.id);
+      setEmployeeId(Number.isFinite(normalizedEmployeeId) ? normalizedEmployeeId : 0);
       setClientId(String(employee?.clientId || ''));
       setIsLoading(false);
     }
@@ -121,14 +122,38 @@ const EmployeeAttendanceReport = () => {
 
       console.log('API Response:', response.data); // Debug log
 
-      const formattedData = response.data.map((item: any) => {
+      const normalizeDateLabel = (raw?: string | null) => {
+        const value = String(raw || '').trim();
+        if (!value) return 'N/A';
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          const [yyyy, mm, dd] = value.split('-');
+          return `${dd}/${mm}/${yyyy}`;
+        }
+        return value;
+      };
+
+      let sourceData = Array.isArray(response.data) ? response.data : [];
+      if (sourceData.length === 0) {
+        const monthSliceRes = await axios.get(
+          buildApiUrl(`/api/attendance/monthly/${employeeId}/${year}/${String(month).padStart(2, '0')}`),
+          {
+            params: withClientId({}, clientId),
+            timeout: 10000,
+          }
+        );
+        sourceData = Array.isArray(monthSliceRes.data) ? monthSliceRes.data : [];
+      }
+
+      const formattedData = sourceData.map((item: any) => {
         // Debug the missedTimes field
         console.log('Item missedTimes:', item.missedTimes, 'Type:', typeof item.missedTimes);
         
         return {
           empId: employeeId.toString(),
           firstName: item.firstName || employeeDetails.firstName || 'N/A',
-          date: item.date || 'N/A',
+          name: item.name || item.firstName || employeeDetails.firstName || 'N/A',
+          date: normalizeDateLabel(item.date),
           timeIn: item.timeIn,
           timeOut: item.timeOut,
           workingHours: calculateWorkingHours(item.timeIn, item.timeOut),
@@ -236,6 +261,15 @@ const EmployeeAttendanceReport = () => {
 
   const getPeriodString = () => {
     return currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  };
+
+  const shiftMonth = (delta: number) => {
+    setCurrentDate((prev) => {
+      const next = new Date(prev);
+      next.setDate(1);
+      next.setMonth(next.getMonth() + delta);
+      return next;
+    });
   };
 
   const generatePDFHtml = () => {
@@ -492,7 +526,15 @@ const EmployeeAttendanceReport = () => {
         
         <View style={styles.printContainer}>
           <View style={styles.printHeader}>
-            <Text style={styles.printSubtitle}>{getPeriodString()}</Text>
+            <View style={styles.periodRow}>
+              <TouchableOpacity style={styles.periodButton} onPress={() => shiftMonth(-1)}>
+                <Feather name="chevron-left" size={18} color="#7726B9" />
+              </TouchableOpacity>
+              <Text style={styles.printSubtitle}>{getPeriodString()}</Text>
+              <TouchableOpacity style={styles.periodButton} onPress={() => shiftMonth(1)}>
+                <Feather name="chevron-right" size={18} color="#7726B9" />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.employeeName}>{employeeDetails.firstName}</Text>
           </View>
           
@@ -634,6 +676,22 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     paddingBottom: 16,
+  },
+  periodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  periodButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D8B4FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F0FF',
   },
   printSubtitle: {
     fontSize: 18,

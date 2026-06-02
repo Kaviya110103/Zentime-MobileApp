@@ -73,7 +73,7 @@ export default function MarkTimeInScreen() {
 
     try {
       const photo = await ref.current?.takePictureAsync({
-        quality: 0.8,
+        quality: Platform.OS === "web" ? 0.6 : 0.8,
         skipProcessing: false,
       });
 
@@ -85,9 +85,9 @@ export default function MarkTimeInScreen() {
       // Compress image
       const compressed = await ImageManipulator.manipulateAsync(
         photo.uri,
-        [{ resize: { width: 1024 } }],
+        [{ resize: { width: Platform.OS === "web" ? 768 : 1024 } }],
         {
-          compress: 0.7,
+          compress: Platform.OS === "web" ? 0.6 : 0.7,
           format: ImageManipulator.SaveFormat.JPEG,
         }
       );
@@ -145,23 +145,32 @@ export default function MarkTimeInScreen() {
       
       // Get file info
       const filename = uri.split('/').pop() || `timein_${Date.now()}.jpg`;
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      if (Platform.OS === "web") {
+        const imageBlob = await fetch(uri).then((res) => res.blob());
+        formData.append("imageIn", imageBlob, filename);
+      } else {
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        // @ts-ignore - React Native FormData typing issue
+        formData.append("imageIn", {
+          uri,
+          name: filename,
+          type,
+        });
+      }
 
-      // @ts-ignore - React Native FormData typing issue
-      formData.append("imageIn", {
-        uri: uri,
-        name: filename,
-        type: type,
-      });
-
-      const response = await fetch(buildApiUrl(`/api/attendance/mark-time-in`, { clientId }), {
-        method: "POST",
-        body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), 30000);
+      let response: Response;
+      try {
+        response = await fetch(buildApiUrl(`/api/attendance/mark-time-in`, { clientId }), {
+          method: "POST",
+          body: formData,
+          signal: abortController.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const responseText = await response.text();
       
@@ -173,7 +182,11 @@ export default function MarkTimeInScreen() {
       }
     } catch (error: any) {
       console.error("Upload error:", error);
-      Alert.alert("Error", "Upload failed: " + (error.message || "Please try again"));
+      if (error?.name === "AbortError") {
+        Alert.alert("Timeout", "Upload is taking too long. Please retry.");
+      } else {
+        Alert.alert("Error", "Upload failed: " + (error.message || "Please try again"));
+      }
     } finally {
       setUploading(false);
     }

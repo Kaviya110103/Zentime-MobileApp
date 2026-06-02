@@ -29,6 +29,14 @@ const SwapWeekoff = () => {
   const formatDate = (date: Date) =>
     `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
 
+  const toWebDateInputValue = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+  const parseWebDateInput = (raw: string): Date | null => {
+    const parsed = new Date(`${raw}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
   const handleSubmit = async () => {
     if (!employeeId) {
       Alert.alert("Missing Employee", "Employee ID is missing. Please login again.");
@@ -101,7 +109,32 @@ const SwapWeekoff = () => {
             <Text style={styles.label}>
               Swap Day <Text style={styles.required}>*</Text>
             </Text>
-            <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.inputField}>
+            <TouchableOpacity
+              onPress={() => {
+                if (Platform.OS === "web") {
+                  const picked = globalThis.prompt?.(
+                    "Select swap day (YYYY-MM-DD)",
+                    toWebDateInputValue(swapDate || new Date())
+                  );
+                  if (!picked) return;
+                  const parsed = parseWebDateInput(picked.trim());
+                  if (!parsed) {
+                    Alert.alert("Invalid Date", "Please use YYYY-MM-DD format.");
+                    return;
+                  }
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  if (parsed < today) {
+                    Alert.alert("Invalid Date", "Swap date cannot be in the past.");
+                    return;
+                  }
+                  setSwapDate(parsed);
+                  return;
+                }
+                setShowDatePicker(true);
+              }}
+              style={styles.inputField}
+            >
               <Text style={[styles.inputText, swapDate && styles.selectedText]}>
                 {swapDate ? formatDate(swapDate) : "Select swap weekoff date"}
               </Text>

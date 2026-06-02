@@ -126,7 +126,6 @@ function LayoutContent() {
           {/* <Stack.Scr    een name="Leaverequest" options={{ headerShown: false }} /> */}
           <Stack.Screen name="Walkthrough" options={{ headerShown: false }} />
           <Stack.Screen name="ClientReg" options={{ headerShown: false }} />
-          <Stack.Screen name="Testback" options={{ headerShown: false }} />
         </Stack>
       </View>
     </PaperProvider>

@@ -6,7 +6,7 @@ import { CameraMode, CameraType, CameraView, useCameraPermissions } from "expo-c
 import { Image } from "expo-image";
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useRef, useState, useContext, useEffect } from "react";
-import { Alert, Dimensions, Platform, StyleSheet, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { Alert, Dimensions, Modal, Platform, StyleSheet, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { AppText as Text } from '../components/AppTypography';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -28,6 +28,16 @@ export default function MarkTimeOutScreen() {
   const clientId = employee?.clientId;
   const { recordId } = useLocalSearchParams();
   const [cameraReady, setCameraReady] = useState(false);
+  const [overtimeReason, setOvertimeReason] = useState("");
+  const [reasonModalVisible, setReasonModalVisible] = useState(false);
+  const reasonResolver = useRef<((reason: string | null) => void) | null>(null);
+  const showWebAwareAlert = (title: string, body: string) => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(`${title}\n\n${body}`);
+      return;
+    }
+    Alert.alert(title, body);
+  };
 
   useEffect(() => {
     // Request permissions on mount
@@ -67,34 +77,34 @@ export default function MarkTimeOutScreen() {
 
   const takePicture = async () => {
     if (!cameraReady) {
-      Alert.alert("Error", "Camera is not ready yet. Please wait.");
+      showWebAwareAlert("Error", "Camera is not ready yet. Please wait.");
       return;
     }
 
     try {
       const photo = await ref.current?.takePictureAsync({
-        quality: 0.8,
+        quality: Platform.OS === "web" ? 0.6 : 0.8,
         skipProcessing: false,
       });
 
       if (!photo?.uri) {
-        Alert.alert("Error", "Failed to capture image");
+        showWebAwareAlert("Error", "Failed to capture image");
         return;
       }
 
       // Compress image
       const compressed = await ImageManipulator.manipulateAsync(
         photo.uri,
-        [{ resize: { width: 1024 } }],
+        [{ resize: { width: Platform.OS === "web" ? 768 : 1024 } }],
         {
-          compress: 0.7,
+          compress: Platform.OS === "web" ? 0.6 : 0.7,
           format: ImageManipulator.SaveFormat.JPEG,
         }
       );
 
       setUri(compressed.uri);
     } catch (error) {
-      Alert.alert("Error", "Failed to capture or compress image.");
+      showWebAwareAlert("Error", "Failed to capture or compress image.");
       console.error("Capture error:", error);
     }
   };
@@ -109,16 +119,16 @@ export default function MarkTimeOutScreen() {
 
   const uploadPhoto = async () => {
     if (!uri) {
-      Alert.alert("Error", "Please capture an image first");
+      showWebAwareAlert("Error", "Please capture an image first");
       return;
     }
 
     if (!recordId) {
-      Alert.alert("Error", "Invalid record ID");
+      showWebAwareAlert("Error", "Invalid record ID");
       return;
     }
     if (!employee?.id) {
-      Alert.alert("Error", "Employee session missing. Please login again.");
+      showWebAwareAlert("Error", "Employee session missing. Please login again.");
       return;
     }
 
@@ -135,7 +145,7 @@ export default function MarkTimeOutScreen() {
         })
       );
       if (!checkResponse.ok) {
-        Alert.alert("Error", "Attendance record expired. Please refresh and try again.");
+        showWebAwareAlert("Error", "Attendance record expired. Please refresh and try again.");
         router.replace("/MarkAttendance");
         return;
       }
@@ -149,32 +159,52 @@ export default function MarkTimeOutScreen() {
       const effectiveShiftEndMinutes = shiftEndMinutes ?? (19 * 60);
       const isAfterShiftEnd = currentMinutes > effectiveShiftEndMinutes;
       let overtimeRequested = false;
+      let submittedOvertimeReason = "";
 
       if (isAfterShiftEnd) {
         overtimeRequested = await askOvertimeConfirmation();
+        if (overtimeRequested) {
+          const reason = await askOvertimeReason();
+          if (!reason) {
+            return;
+          }
+          submittedOvertimeReason = reason;
+        }
       }
 
       formData.append("overtimeRequested", String(overtimeRequested));
+      if (submittedOvertimeReason) {
+        formData.append("overtimeReason", submittedOvertimeReason);
+      }
       
       // Get file info
       const filename = uri.split('/').pop() || `timeout_${Date.now()}.jpg`;
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      if (Platform.OS === "web") {
+        const imageBlob = await fetch(uri).then((res) => res.blob());
+        formData.append("imageOut", imageBlob, filename);
+      } else {
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        // @ts-ignore - React Native FormData typing issue
+        formData.append("imageOut", {
+          uri,
+          name: filename,
+          type,
+        });
+      }
 
-      // @ts-ignore - React Native FormData typing issue
-      formData.append("imageOut", {
-        uri: uri,
-        name: filename,
-        type: type,
-      });
-
-      const response = await fetch(buildApiUrl(`/api/attendance/mark-time-out`, { clientId }), {
-        method: "POST",
-        body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), 30000);
+      let response: Response;
+      try {
+        response = await fetch(buildApiUrl(`/api/attendance/mark-time-out`, { clientId }), {
+          method: "POST",
+          body: formData,
+          signal: abortController.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const responseText = await response.text();
       
@@ -186,7 +216,11 @@ export default function MarkTimeOutScreen() {
       }
     } catch (error: any) {
       console.error("Upload error:", error);
-      Alert.alert("Error", "Upload failed: " + (error.message || "Please try again"));
+      if (error?.name === "AbortError") {
+        showWebAwareAlert("Timeout", "Upload is taking too long. Please retry.");
+      } else {
+        showWebAwareAlert("Error", "Upload failed: " + (error.message || "Please try again"));
+      }
     } finally {
       setUploading(false);
     }
@@ -194,6 +228,11 @@ export default function MarkTimeOutScreen() {
 
   const askOvertimeConfirmation = () =>
     new Promise<boolean>((resolve) => {
+      if (Platform.OS === "web" && typeof window !== "undefined" && typeof window.confirm === "function") {
+        const accepted = window.confirm("Overtime Request\n\nDo you want to apply for overtime?");
+        resolve(accepted);
+        return;
+      }
       Alert.alert(
         "Overtime Request",
         "Do you want to apply for overtime?",
@@ -204,6 +243,20 @@ export default function MarkTimeOutScreen() {
         { cancelable: false }
       );
     });
+
+  const askOvertimeReason = () =>
+    new Promise<string | null>((resolve) => {
+      setOvertimeReason("");
+      reasonResolver.current = resolve;
+      setReasonModalVisible(true);
+    });
+
+  const closeReasonModal = (reason: string | null) => {
+    setReasonModalVisible(false);
+    const resolve = reasonResolver.current;
+    reasonResolver.current = null;
+    resolve?.(reason);
+  };
 
   const parseTimeStringToMinutes = (timeString?: string | null): number | null => {
     if (!timeString) return null;
@@ -321,10 +374,96 @@ export default function MarkTimeOutScreen() {
     </View>
   );
 
-  return uri ? renderPicture() : renderCamera();
+  return (
+    <>
+      {uri ? renderPicture() : renderCamera()}
+      <Modal visible={reasonModalVisible} transparent animationType="fade" onRequestClose={() => closeReasonModal(null)}>
+        <View style={styles.reasonOverlay}>
+          <View style={styles.reasonCard}>
+            <Text style={styles.reasonTitle}>Overtime Reason</Text>
+            <Text style={styles.reasonHelp}>Enter the reason for working after your shift end time.</Text>
+            <TextInput
+              style={styles.reasonInput}
+              value={overtimeReason}
+              onChangeText={setOvertimeReason}
+              placeholder="Enter overtime reason"
+              multiline
+              maxLength={500}
+            />
+            <View style={styles.reasonActions}>
+              <TouchableOpacity style={styles.reasonCancel} onPress={() => closeReasonModal(null)}>
+                <Text style={styles.reasonCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.reasonSubmit, !overtimeReason.trim() && styles.disabledButton]}
+                disabled={!overtimeReason.trim()}
+                onPress={() => closeReasonModal(overtimeReason.trim())}
+              >
+                <Text style={styles.reasonSubmitText}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
+  reasonOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  reasonCard: {
+    padding: 20,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+  },
+  reasonTitle: {
+    color: '#351153',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  reasonHelp: {
+    color: '#555',
+    marginTop: 8,
+    marginBottom: 14,
+    lineHeight: 20,
+  },
+  reasonInput: {
+    minHeight: 100,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(53, 17, 83, 0.3)',
+    borderRadius: 10,
+    textAlignVertical: 'top',
+  },
+  reasonActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 16,
+  },
+  reasonCancel: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  reasonCancelText: {
+    color: '#351153',
+    fontWeight: '600',
+  },
+  reasonSubmit: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    backgroundColor: '#351153',
+  },
+  reasonSubmitText: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
   // Permission Screen Styles
   permissionContainer: {
     flex: 1,

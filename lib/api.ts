@@ -1,13 +1,23 @@
 type QueryValue = string | number | boolean | null | undefined;
 
-const DEFAULT_BASE_URL = "http://192.168.1.59:8080";
+const DEFAULT_BASE_URL = "http://192.168.1.3:8080";
+
+function inferDefaultBaseUrl(): string {
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    const host = window.location.hostname.trim();
+    if (host.length > 0) {
+      return `http://${host}:8080`;
+    }
+  }
+  return DEFAULT_BASE_URL;
+}
 
 function normalizeBaseUrl(rawBaseUrl: string): string {
   // Prevent runtime URL parsing errors from accidental spaces in env/default values.
   return rawBaseUrl.trim().replace(/\s+/g, "").replace(/\/+$/, "");
 }
 
-export const API_BASE_URL = normalizeBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_BASE_URL);
+export const API_BASE_URL = normalizeBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL || inferDefaultBaseUrl());
 
 export function resolveAssetUrl(rawUrl?: string | null): string {
   const value = (rawUrl || "").trim();

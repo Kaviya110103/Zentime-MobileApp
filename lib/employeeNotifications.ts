@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
 
 type EmployeeLike = {
   id?: string | number;
@@ -19,6 +20,10 @@ type AttendanceLike = {
   attendanceStatus?: string | null;
   dayStatus?: string | null;
 };
+
+function canUseNativeNotifications(): boolean {
+  return Platform.OS !== "web";
+}
 
 function getTodayKey(now = new Date()): string {
   const yyyy = now.getFullYear();
@@ -110,6 +115,8 @@ async function notifyOnce(
   body: string,
   shouldPlaySound = true
 ): Promise<void> {
+  if (!canUseNativeNotifications()) return;
+
   const sent = await AsyncStorage.getItem(key);
   if (sent === "1") return;
 
@@ -188,6 +195,8 @@ async function cancelReminder(
   employeeId: string | number,
   dayKey: string
 ): Promise<void> {
+  if (!canUseNativeNotifications()) return;
+
   const key = reminderIdKey(type, employeeId, dayKey);
   const id = await AsyncStorage.getItem(key);
   if (id) {
@@ -208,6 +217,8 @@ async function scheduleReminder(
   body: string,
   dayKey: string
 ): Promise<void> {
+  if (!canUseNativeNotifications()) return;
+
   const key = reminderIdKey(type, employeeId, dayKey);
   const existing = await AsyncStorage.getItem(key);
   if (existing) return;

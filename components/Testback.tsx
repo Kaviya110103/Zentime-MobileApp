@@ -4,7 +4,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import axios from "axios";
 import { router } from "expo-router";
 import React, { useContext, useEffect, useState, useCallback } from "react";
-import { Alert, StyleSheet, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { Alert, StyleSheet, TouchableOpacity, View, ActivityIndicator, Modal } from 'react-native';
 import { AppText as Text } from './AppTypography';
 import { buildApiUrl, withClientId } from "../lib/api";
 import { syncAttendanceNotifications } from "../lib/employeeNotifications";
@@ -22,6 +22,8 @@ const AttendanceFlow: React.FC = () => {
   const [leaveToday, setLeaveToday] = useState(false);
   const [view, setView] = useState<"main" | "start" | "timeIn" | "timeOut" | "closed">("main");
   const [navigationInProgress, setNavigationInProgress] = useState(false);
+  const [showEarlyClockOutModal, setShowEarlyClockOutModal] = useState(false);
+  const [earlyClockOutTimeLimit, setEarlyClockOutTimeLimit] = useState("");
 
   // Fetch record with better error handling
   const fetchRecord = useCallback(async (showLoading = true) => {
@@ -175,7 +177,7 @@ const AttendanceFlow: React.FC = () => {
       
       try {
         if (view === "timeIn") {
-          await router.push(`/MarkTimeIn?recordId=${record.id}`);
+          await router.replace(`/MarkTimeIn?recordId=${record.id}`);
         } else if (view === "timeOut") {
           const now = new Date();
           const currentHour = now.getHours();
@@ -202,7 +204,7 @@ const AttendanceFlow: React.FC = () => {
           const isAllowedToClockOut = currentTimeInMinutes >= allowedTimeInMinutes;
 
           if (isAllowedToClockOut) {
-            await router.push(`/MarkTimeOut?recordId=${record.id}`);
+            await router.replace(`/MarkTimeOut?recordId=${record.id}`);
           } else {
             const hours = Math.floor(allowedTimeInMinutes / 60);
             const minutes = allowedTimeInMinutes % 60;
@@ -210,17 +212,9 @@ const AttendanceFlow: React.FC = () => {
             const displayHours = hours > 12 ? hours - 12 : hours;
             const timeLimit = `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
             
-            Alert.alert(
-              "Early Clock-Out",
-              `You can only clock out after ${timeLimit}. Do you want to request permission?`,
-              [
-                { text: "Cancel", style: "cancel", onPress: () => setView("main") },
-                {
-                  text: "Request Permission",
-                  onPress: () => router.push(`/EmployeePermission?recordId=${record.id}`)
-                }
-              ]
-            );
+            setEarlyClockOutTimeLimit(timeLimit);
+            setShowEarlyClockOutModal(true);
+            setView("main");
           }
         }
       } catch (error) {
@@ -327,7 +321,7 @@ const AttendanceFlow: React.FC = () => {
   const handleBackToMain = async () => {
     await fetchRecord(true);
     setView("main");
-    router.push("/MarkAttendance");
+    router.replace("/MarkAttendance");
   };
 
   if (initialLoading) {
@@ -392,28 +386,65 @@ const AttendanceFlow: React.FC = () => {
   const isDisabled = loading || label === "Day Completed" || label === "Holiday";
 
   return (
-    <View style={styles.centerContainer}>
-      <TouchableOpacity
-        style={[styles.touchIconBox, isDisabled && styles.disabledBox]}
-        onPress={handleActionPress}
-        disabled={isDisabled}
+    <>
+      <View style={styles.centerContainer}>
+        <TouchableOpacity
+          style={[styles.touchIconBox, isDisabled && styles.disabledBox]}
+          onPress={handleActionPress}
+          disabled={isDisabled}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="#351153" />
+          ) : (
+            <>
+              <MaterialIcons 
+                name={label === "Start Day" ? "wb-sunny" : label === "Holiday" ? "celebration" : "touch-app"} 
+                size={38} 
+                color={label === "Holiday" ? "#2563EB" : isDisabled ? "#9CA3AF" : "#351153"} 
+              />
+              <Text style={[styles.touchText, label === "Holiday" ? styles.holidayText : isDisabled && styles.disabledText]}>
+                {label}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <Modal
+        visible={showEarlyClockOutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEarlyClockOutModal(false)}
       >
-        {loading ? (
-          <ActivityIndicator size="small" color="#351153" />
-        ) : (
-          <>
-            <MaterialIcons 
-              name={label === "Start Day" ? "wb-sunny" : label === "Holiday" ? "celebration" : "touch-app"} 
-              size={38} 
-              color={label === "Holiday" ? "#2563EB" : isDisabled ? "#9CA3AF" : "#351153"} 
-            />
-            <Text style={[styles.touchText, label === "Holiday" ? styles.holidayText : isDisabled && styles.disabledText]}>
-              {label}
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Early Clock-Out</Text>
+            <Text style={styles.modalMessage}>
+              You can only clock out after {earlyClockOutTimeLimit}. Do you want to request permission?
             </Text>
-          </>
-        )}
-      </TouchableOpacity>
-    </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelModalButton]}
+                onPress={() => setShowEarlyClockOutModal(false)}
+              >
+                <Text style={styles.cancelModalText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmModalButton]}
+                onPress={() => {
+                  setShowEarlyClockOutModal(false);
+                  if (record?.id) {
+                    router.replace(`/EmployeePermission?recordId=${record.id}`);
+                  }
+                }}
+              >
+                <Text style={styles.confirmModalText}>Request Permission</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -595,6 +626,56 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#4B5563",
     textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 18,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: "#4B5563",
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "flex-end",
+  },
+  modalButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  cancelModalButton: {
+    backgroundColor: "#E5E7EB",
+  },
+  confirmModalButton: {
+    backgroundColor: "#351153",
+  },
+  cancelModalText: {
+    color: "#1F2937",
+    fontWeight: "600",
+  },
+  confirmModalText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 });
 

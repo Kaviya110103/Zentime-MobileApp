@@ -28,10 +28,17 @@ const companyCode = employee?.companyCode;  // 👈 get companyCode here
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const showWebAwareAlert = (title: string, message: string) => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(`${title}\n\n${message}`);
+      return;
+    }
+    Alert.alert(title, message);
+  };
 
 useEffect(() => {
   if (!employeeId) {
-    Alert.alert("Error", "Employee ID is missing.");
+    showWebAwareAlert("Error", "Employee ID is missing.");
       router.replace("/EmployeeLogin"); // Redirect user to login
   }
 }, [employeeId]);
@@ -50,6 +57,16 @@ useEffect(() => {
     ).padStart(2, "0")}/${date.getFullYear()}`;
   };
 
+  const toWebDateInputValue = (date: Date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+
+  const parseWebDateInput = (raw: string): Date | null => {
+    if (!raw) return null;
+    const parsed = new Date(`${raw}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
   const getDaysBetween = (start: Date, end: Date) => {
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
@@ -58,15 +75,15 @@ useEffect(() => {
 
   const handleSubmit = async () => {
     if (!employeeId) {
-      Alert.alert("Missing Employee", "Employee ID is missing. Please login again or contact admin.");
+      showWebAwareAlert("Missing Employee", "Employee ID is missing. Please login again or contact admin.");
       return;
     }
     if (!leaveType || !startDate || !endDate) {
-      Alert.alert("Missing Information", "Please fill all required fields marked with *");
+      showWebAwareAlert("Missing Information", "Please fill all required fields marked with *");
       return;
     }
     if (endDate < startDate) {
-      Alert.alert("Invalid Dates", "End date cannot be before start date");
+      showWebAwareAlert("Invalid Dates", "End date cannot be before start date");
       return;
     }
 
@@ -89,10 +106,9 @@ useEffect(() => {
         }
       );
 
-      Alert.alert(
-        "Success! 🎉",
-        "Your leave request has been submitted successfully and is now pending approval.",
-        [{ text: "OK", style: "default" }]
+      showWebAwareAlert(
+        "Success",
+        "Your leave request has been submitted successfully and is now pending approval."
       );
 
       // Reset form
@@ -102,10 +118,9 @@ useEffect(() => {
       setReason("");
     } catch (error) {
       console.error("Error submitting form:", error);
-      Alert.alert(
+      showWebAwareAlert(
         "Submission Failed",
-        "Unable to submit your request. Please check your connection and try again.",
-        [{ text: "Retry", style: "default" }]
+        "Unable to submit your request. Please check your connection and try again."
       );
     } finally {
       setIsSubmitting(false);
@@ -176,14 +191,39 @@ useEffect(() => {
                   <Text style={styles.cardTitle}>Start Date</Text>
                   <Text style={styles.required}>*</Text>
                 </View>
-                <TouchableOpacity
-                  onPress={() => setShowStartPicker(true)}
-                  style={styles.dateButton}
-                >
-                  <Text style={[styles.dateText, startDate && styles.dateTextSelected]}>
-                    {startDate ? formatDate(startDate) : "Select date"}
-                  </Text>
-                </TouchableOpacity>
+                {Platform.OS === "web" ? (
+                  <View style={styles.dateButton}>
+                    <input
+                      type="date"
+                      value={startDate ? toWebDateInputValue(startDate) : ""}
+                      min={toWebDateInputValue(new Date())}
+                      onChange={(event: any) => {
+                        const parsed = parseWebDateInput(String(event?.target?.value ?? ""));
+                        if (!parsed) return;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        if (parsed < today) {
+                          showWebAwareAlert("Invalid Date", "Start date cannot be in the past.");
+                          return;
+                        }
+                        setStartDate(parsed);
+                        if (endDate && endDate < parsed) {
+                          setEndDate(parsed);
+                        }
+                      }}
+                      style={webPickerInputStyle}
+                    />
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setShowStartPicker(true)}
+                    style={styles.dateButton}
+                  >
+                    <Text style={[styles.dateText, startDate && styles.dateTextSelected]}>
+                      {startDate ? formatDate(startDate) : "Select date"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 {showStartPicker && (
                   <DateTimePicker
                     value={startDate || new Date()}
@@ -205,14 +245,36 @@ useEffect(() => {
                   <Text style={styles.cardTitle}>End Date</Text>
                   <Text style={styles.required}>*</Text>
                 </View>
-                <TouchableOpacity
-                  onPress={() => setShowEndPicker(true)}
-                  style={styles.dateButton}
-                >
-                  <Text style={[styles.dateText, endDate && styles.dateTextSelected]}>
-                    {endDate ? formatDate(endDate) : "Select date"}
-                  </Text>
-                </TouchableOpacity>
+                {Platform.OS === "web" ? (
+                  <View style={styles.dateButton}>
+                    <input
+                      type="date"
+                      value={endDate ? toWebDateInputValue(endDate) : ""}
+                      min={toWebDateInputValue(startDate || new Date())}
+                      onChange={(event: any) => {
+                        const parsed = parseWebDateInput(String(event?.target?.value ?? ""));
+                        if (!parsed) return;
+                        const minDate = new Date(startDate || new Date());
+                        minDate.setHours(0, 0, 0, 0);
+                        if (parsed < minDate) {
+                          showWebAwareAlert("Invalid Date", "End date cannot be before start date.");
+                          return;
+                        }
+                        setEndDate(parsed);
+                      }}
+                      style={webPickerInputStyle}
+                    />
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setShowEndPicker(true)}
+                    style={styles.dateButton}
+                  >
+                    <Text style={[styles.dateText, endDate && styles.dateTextSelected]}>
+                      {endDate ? formatDate(endDate) : "Select date"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 {showEndPicker && (
                   <DateTimePicker
                     value={endDate || startDate || new Date()}
@@ -300,6 +362,17 @@ useEffect(() => {
     </SafeAreaView>
   );
 };
+
+const webPickerInputStyle = {
+  width: "100%",
+  height: 44,
+  borderWidth: 0,
+  borderStyle: "none",
+  outlineStyle: "none",
+  backgroundColor: "transparent",
+  color: "#1F2937",
+  fontSize: 15,
+} as const;
 
 
 const styles = StyleSheet.create({

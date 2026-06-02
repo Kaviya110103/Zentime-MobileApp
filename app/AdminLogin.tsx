@@ -1,5 +1,5 @@
 import React, { useContext, useState } from "react";
-import { Alert, ImageBackground, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, ImageBackground, Platform, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { AppText as Text, AppTextInput as TextInput } from '../components/AppTypography';
 import { useRouter } from "expo-router";
 import { buildApiUrl } from "../lib/api";
@@ -17,38 +17,75 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageColor, setMessageColor] = useState("#DC2626");
+  const { width } = useWindowDimensions();
   const placeholderColor = isDark ? "#94a3b8" : "#999";
+  const isNarrow = width < 420;
+  const cardMaxWidth = width >= 1200 ? 500 : width >= 900 ? 460 : 420;
+
+  const showWebAwareAlert = (title: string, body: string) => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(`${title}\n\n${body}`);
+      return;
+    }
+    Alert.alert(title, body);
+  };
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      Alert.alert("Missing fields", "Please enter username and password.");
+      setMessageColor("#DC2626");
+      setMessage("Please enter username and password.");
+      showWebAwareAlert("Missing fields", "Please enter username and password.");
       return;
     }
 
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let loginUrl = "";
     try {
       setIsSubmitting(true);
-      const response = await fetch(buildApiUrl("/api/clients/login"), {
+      setMessage("");
+      loginUrl = buildApiUrl("/api/clients/login");
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), 10000);
+      console.log("[AdminLogin] POST", loginUrl);
+      const response = await fetch(loginUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: username.trim(),
           password,
         }),
+        signal: controller.signal,
       });
+      console.log("[AdminLogin] Response", response.status);
 
       if (!response.ok) {
-        Alert.alert("Login failed", "Invalid admin credentials.");
+        const failureMessage =
+          response.status === 401
+            ? "Invalid admin credentials."
+            : `Login server rejected the request (HTTP ${response.status}).`;
+        setMessageColor("#DC2626");
+        setMessage(failureMessage);
+        showWebAwareAlert("Login failed", failureMessage);
         return;
       }
 
       const data = await response.json();
       await AsyncStorage.setItem(WALKTHROUGH_DONE_KEY, 'true');
       await setAdminClient(data);
+      setMessageColor("#16A34A");
+      setMessage("Login successful!");
       router.replace("/AdminDashboard");
     } catch (error) {
-      console.error("Admin login error:", error);
-      Alert.alert("Network error", "Unable to login. Please try again.");
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[AdminLogin] Request failed", { loginUrl, detail, error });
+      const networkMessage = `Could not reach the login server.\n${loginUrl}\n\n${detail}`;
+      setMessageColor("#DC2626");
+      setMessage("Could not reach the login server.");
+      showWebAwareAlert("Network error", networkMessage);
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       setIsSubmitting(false);
     }
   };
@@ -59,11 +96,11 @@ export default function AdminLogin() {
       style={styles.background}
       resizeMode="cover"
     >
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.heading}>Admin Login</Text>
-
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <>
+      <View style={styles.overlay}>
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+          <View style={[styles.shell, { maxWidth: cardMaxWidth }]}>
+            <Text style={[styles.heading, isNarrow && styles.headingSmall]}>Admin Login</Text>
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <Text style={[styles.label, { color: colors.mutedText }]}>Username*</Text>
             <TextInput
               style={[
@@ -77,6 +114,7 @@ export default function AdminLogin() {
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
+              autoCorrect={false}
               placeholder="Enter admin username"
               placeholderTextColor={placeholderColor}
             />
@@ -117,16 +155,20 @@ export default function AdminLogin() {
                 {isSubmitting ? "Logging in..." : "Login"}
               </Text>
             </TouchableOpacity>
-          </>
+            {message ? (
+              <Text style={[styles.message, { color: messageColor }]}>{message}</Text>
+            ) : null}
 
-          <TouchableOpacity
-            style={[styles.secondaryButton, { borderColor: colors.primary }]}
-            onPress={() => router.replace("/EmployeeLogin")}
-          >
-            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Back to Employee Login</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+            <TouchableOpacity
+              style={[styles.secondaryButton, { borderColor: colors.primary }]}
+              onPress={() => router.replace("/EmployeeLogin")}
+            >
+              <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Back to Employee Login</Text>
+            </TouchableOpacity>
+          </View>
+          </View>
+        </ScrollView>
+      </View>
     </ImageBackground>
   );
 }
@@ -135,22 +177,40 @@ const styles = StyleSheet.create({
   background: {
     flex: 1,
   },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(10, 18, 36, 0.56)",
+  },
   container: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+  shell: {
+    width: "100%",
   },
   heading: {
     fontSize: 28,
     color: "#fff",
     fontWeight: "bold",
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 20,
+    letterSpacing: 0.3,
+  },
+  headingSmall: {
+    fontSize: 24,
   },
   card: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 22,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.13,
+    shadowRadius: 6,
+    elevation: 4,
   },
   label: {
     fontSize: 14,
@@ -164,6 +224,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     marginBottom: 16,
+    fontSize: 15,
   },
   passwordContainer: {
     borderWidth: 1,
@@ -177,6 +238,7 @@ const styles = StyleSheet.create({
   passwordInput: {
     flex: 1,
     paddingVertical: 12,
+    fontSize: 15,
   },
   showText: {
     color: "#351153",
@@ -195,6 +257,13 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: "#fff",
     fontWeight: "700",
+    fontSize: 15,
+  },
+  message: {
+    textAlign: "center",
+    marginBottom: 12,
+    fontSize: 14,
+    fontWeight: "600",
   },
   secondaryButton: {
     borderWidth: 1,

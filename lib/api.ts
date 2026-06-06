@@ -1,6 +1,6 @@
 type QueryValue = string | number | boolean | null | undefined;
 
-const DEFAULT_BASE_URL = "http://192.168.1.3:8080";
+const DEFAULT_BASE_URL = "https://test2.zentime.co.in";
 
 function inferDefaultBaseUrl(): string {
   if (typeof window !== "undefined" && window.location?.hostname) {

@@ -11,6 +11,7 @@ import { Avatar, Button, Card, IconButton } from 'react-native-paper';
 import { EmployeeContext } from '../context/EmployeeContext';
 import { buildApiUrl, withClientId } from '../lib/api';
 import { APP_FONT_FAMILY_BOLD } from '../lib/typography';
+import { useAppTheme } from '../context/AppThemeContext';
 
 
 
@@ -32,6 +33,7 @@ const AnnouncementBoard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const { isDark, colors } = useAppTheme();
 
 const { employee, setEmployee, logout } = useContext(EmployeeContext);
 const companyCode = employee?.companyCode; 
@@ -81,24 +83,24 @@ const companyCode = employee?.companyCode;
       setSelectedAnnouncement(item);
       setModalVisible(true);
     }}>
-      <Card style={styles.card}>
+      <Card style={[styles.card, { backgroundColor: colors.surface }]}>
         <Card.Content>
           <View style={styles.cardHeader}>
             <Avatar.Text 
               size={36} 
               label={item.postedBy.charAt(0).toUpperCase()} 
-              style={styles.avatar}
+              style={[styles.avatar, { backgroundColor: colors.primary }]}
             />
             <View style={styles.headerText}>
-              <Text style={styles.postedBy}>{item.postedBy}</Text>
-              <Text style={styles.postedDate}>
+              <Text style={[styles.postedBy, { color: colors.text }]}>{item.postedBy}</Text>
+              <Text style={[styles.postedDate, { color: colors.mutedText }]}>
                 {formatDistanceToNow(new Date(item.postedDate), { addSuffix: true })}
               </Text>
             </View>
           </View>
-          <Text style={styles.title}>{item.title}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
           <Text 
-            style={styles.message} 
+            style={[styles.message, { color: colors.mutedText }]}
             numberOfLines={3}
             ellipsizeMode="tail"
           >
@@ -122,8 +124,8 @@ const companyCode = employee?.companyCode;
 
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
       {/* Header */}
       {/* <View style={styles.header}>
@@ -147,14 +149,14 @@ const companyCode = employee?.companyCode;
 
 
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <MaterialIcons name="search" size={20} color="#999" style={styles.searchIcon} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: colors.text }]}
           placeholder="Search announcements..."
           value={searchTerm}
           onChangeText={setSearchTerm}
-          placeholderTextColor="#999"
+          placeholderTextColor={isDark ? "#94a3b8" : "#999"}
         />
         {searchTerm ? (
           <TouchableOpacity onPress={() => setSearchTerm('')}>
@@ -167,7 +169,7 @@ const companyCode = employee?.companyCode;
       {/* Announcements List */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <Text>Loading announcements...</Text>
+          <Text style={{ color: colors.text }}>Loading announcements...</Text>
         </View>
       ) : (
         <FlatList
@@ -189,7 +191,7 @@ const companyCode = employee?.companyCode;
                 size={60} 
                 color="#ccc" 
               />
-              <Text style={styles.emptyText}>
+              <Text style={[styles.emptyText, { color: colors.mutedText }]}>
                 {searchTerm ? 'No matching announcements found' : 'No announcements available'}
               </Text>
             </View>
@@ -205,13 +207,13 @@ const companyCode = employee?.companyCode;
         visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <IconButton
-              icon={() => <Feather name="arrow-left" size={24} color="#333" />}
+              icon={() => <Feather name="arrow-left" size={24} color={colors.text} />}
               onPress={() => setModalVisible(false)}
             />
-            <Text style={styles.modalTitle}>Announcement Details</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Announcement Details</Text>
           </View>
           
           {selectedAnnouncement && (
@@ -220,19 +222,19 @@ const companyCode = employee?.companyCode;
                 <Avatar.Text 
                   size={48} 
                   label={selectedAnnouncement.postedBy.charAt(0).toUpperCase()} 
-                  style={styles.modalAvatar}
+                  style={[styles.modalAvatar, { backgroundColor: colors.primary }]}
                 />
                 <View style={styles.modalHeaderText}>
-                  <Text style={styles.modalPostedBy}>{selectedAnnouncement.postedBy}</Text>
-                  <Text style={styles.modalPostedDate}>
+                  <Text style={[styles.modalPostedBy, { color: colors.text }]}>{selectedAnnouncement.postedBy}</Text>
+                  <Text style={[styles.modalPostedDate, { color: colors.mutedText }]}>
                     {format(new Date(selectedAnnouncement.postedDate), 'MMMM dd, yyyy • hh:mm a')}
                   </Text>
                 </View>
               </View>
               
-              <Text style={styles.modalTitleText}>{selectedAnnouncement.title}</Text>
+              <Text style={[styles.modalTitleText, { color: colors.text }]}>{selectedAnnouncement.title}</Text>
               
-              <Text style={styles.modalMessage}>{selectedAnnouncement.message}</Text>
+              <Text style={[styles.modalMessage, { color: colors.text }]}>{selectedAnnouncement.message}</Text>
             </ScrollView>
           )}
         </SafeAreaView>
@@ -293,6 +295,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     margin: 16,
     paddingHorizontal: 12,
+    borderWidth: 1,
     ...Platform.select({
       ios: {
         shadowColor: '#000',

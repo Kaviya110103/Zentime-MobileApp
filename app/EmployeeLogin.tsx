@@ -186,8 +186,8 @@ const EmployeeLogin = () => {
 
   if (isLoading) {
     return (
-      <View style={[styles.loadingContainer, styles.whiteBackground]}>
-        <ActivityIndicator size="large" color="#085469" />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -198,7 +198,7 @@ const EmployeeLogin = () => {
       style={styles.background}
       resizeMode="cover"
     >
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, isDark && styles.darkOverlay]}>
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
@@ -206,7 +206,7 @@ const EmployeeLogin = () => {
           <View style={[styles.formShell, { maxWidth: cardMaxWidth }]}>
             <Text style={[styles.heading, isNarrow && styles.headingSmall]}>Employee Login</Text>
             {employee ? (
-              <View style={[styles.welcomeBox, { backgroundColor: colors.surface }]}>
+              <View style={[styles.welcomeBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <Text style={[styles.welcomeText, { color: colors.text }]}>Welcome back,</Text>
                 <Text style={[styles.welcomeName, { color: colors.primary }]}>
                   {employee.name || employee.username || "Employee"}
@@ -228,7 +228,7 @@ const EmployeeLogin = () => {
                 ) : null}
               </View>
             ) : (
-              <View style={[styles.loginBox, { backgroundColor: colors.surface }]}>
+              <View style={[styles.loginBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <Text style={[styles.label, { color: colors.mutedText }]}>Username*</Text>
                 <TextInput
                   style={[styles.input, { borderColor: colors.border, backgroundColor: isDark ? "#0f172a" : "#fff", color: colors.text }]}
@@ -247,6 +247,9 @@ const EmployeeLogin = () => {
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="password"
                     placeholder="Enter your password"
                     placeholderTextColor={placeholderColor}
                   />
@@ -307,6 +310,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(10, 18, 36, 0.56)",
   },
+  darkOverlay: {
+    backgroundColor: "rgba(2, 6, 23, 0.72)",
+  },
   whiteBackground: {
     backgroundColor: "transparent",
   },
@@ -342,6 +348,7 @@ const styles = StyleSheet.create({
     padding: 22,
     borderRadius: 20,
     width: "100%",
+    borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.13,
@@ -355,6 +362,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.13,

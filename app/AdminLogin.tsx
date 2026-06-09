@@ -72,6 +72,14 @@ export default function AdminLogin() {
       }
 
       const data = await response.json();
+      if (!data?.id) {
+        const failureMessage = "Login server returned an invalid admin session.";
+        setMessageColor("#DC2626");
+        setMessage(failureMessage);
+        showWebAwareAlert("Login failed", failureMessage);
+        return;
+      }
+
       await AsyncStorage.setItem(WALKTHROUGH_DONE_KEY, 'true');
       await setAdminClient(data);
       setMessageColor("#16A34A");
@@ -134,6 +142,9 @@ export default function AdminLogin() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="password"
                 placeholder="Enter password"
                 placeholderTextColor={placeholderColor}
               />

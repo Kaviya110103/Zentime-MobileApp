@@ -1,11 +1,10 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { View, TouchableOpacity, ScrollView, StyleSheet, ImageBackground } from 'react-native';
 import { AppText as Text } from '../components/AppTypography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Feather,
   MaterialCommunityIcons,
-  Entypo,
   MaterialIcons,
 } from '@expo/vector-icons';
 
@@ -14,14 +13,14 @@ import EmployeeInfo from '../components/EmployeeInfo';
 import Clockrow from '../components/ClockRow';
 import Testback from '../components/Testback';
 import { EmployeeContext } from '../context/EmployeeContext';
-import LocationTest from './LocationTest';
 import BottomNavBar from '../components/BottomNavBar';
 import { router } from 'expo-router';
+import { useAppTheme } from '../context/AppThemeContext';
 
 const MarkAttendance = () => {
   const { employee } = useContext(EmployeeContext);
+  const { isDark, colors } = useAppTheme();
   const employeeId = employee?.id;
-  const [currentAddress, setCurrentAddress] = useState('');
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -31,7 +30,7 @@ const MarkAttendance = () => {
   }, [employeeId]);
 
   return (
-    <View style={styles.mainContainer}>
+    <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={[
           styles.container,
@@ -55,20 +54,13 @@ const MarkAttendance = () => {
             )}
           </View>
 
-          <Text style={styles.location}>
-            <Entypo name="location-pin" size={14} color="#555" />
-            {' '}
-            {currentAddress ? currentAddress : 'Detecting location...'}
-          </Text>
-
           <Clockrow employeeId={employeeId} />
 
-          <View style={styles.botoombox}>
-            <View style={styles.gridIcons}>
+          <View style={[styles.botoombox, { backgroundColor: colors.surface }]}>
+            <View style={[styles.gridIcons, { backgroundColor: colors.surface }]}>
               {[
                 [MaterialIcons, 'home', 'Status', '#FF6B6B'],
                 [Feather, 'calendar', 'Calendar', '#4ECDC4'],
-                [Feather, 'refresh-cw', 'Swap Weekoff', '#22C55E'],
                 [MaterialIcons, 'campaign', 'Announcement', '#45B7D1'],
                 [MaterialCommunityIcons, 'file-document-outline', 'Report', '#A78BFA'],
               ].map(([Icon, iconName, label, iconColor], index) => (
@@ -81,8 +73,6 @@ const MarkAttendance = () => {
                         pathname: '/EmployeeCalendar',
                         params: { employeeId: employeeId.toString() }
                       });
-                    } else if (label === 'Swap Weekoff') {
-                      router.push('/SwapWeekoff');
                     } else if (label === 'Status') {
                       router.push({
                         pathname: '/EmployeeLeavePermission',
@@ -100,14 +90,14 @@ const MarkAttendance = () => {
                     }
                   }}
                 >
-                  <View style={styles.iconWrap}>
+                  <View style={[styles.iconWrap, isDark && { backgroundColor: '#1f2937' }]}>
                     {React.createElement(Icon as React.ComponentType<any>, {
                       name: iconName,
                       size: 22,
                       color: iconColor,
                     })}
                   </View>
-                  <Text style={styles.iconLabel}>{typeof label === 'string' ? label : ''}</Text>
+                  <Text style={[styles.iconLabel, { color: colors.text }]}>{typeof label === 'string' ? label : ''}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -117,15 +107,6 @@ const MarkAttendance = () => {
           </View>
         </ImageBackground>
       </ScrollView>
-
-        <View style={styles.textlocation}>
-          <LocationTest
-            onAddressChange={setCurrentAddress}
-            showOnlyStatus={true}
-            inModal={false}
-            watchMode="once"
-          />
-        </View>
       <BottomNavBar activeTab="Home" />
     </View>
   );
@@ -152,12 +133,6 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     width: '100%',
     overflow: 'hidden',
-  },
-  location: {
-    textAlign: 'center',
-    marginVertical: 8,
-    color: 'white',
-    fontSize: 9,
   },
   Empinfo: {
     marginTop: 25,
@@ -210,7 +185,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   gridIcons: {
-    backgroundColor: 'white',
     paddingHorizontal: 12,
     paddingTop: 4,
     borderBlockColor: 'blue',
@@ -220,18 +194,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     minHeight: 108,
   },
-  textlocation: {
-    display: 'none',
-  },
   iconItem: {
-    width: '19%',
+    width: '24%',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
-    borderColor: 'white',
+    borderColor: 'transparent',
     borderWidth: 1,
     borderRadius: 8,
-    backgroundColor: 'white',
+    backgroundColor: 'transparent',
     paddingVertical: 6,
     paddingHorizontal: 4,
     boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
@@ -249,7 +220,6 @@ const styles = StyleSheet.create({
     minHeight: 24,
   },
   botoombox: {
-    backgroundColor: 'white',
     paddingVertical: 18,
     borderRadius: 20,
     minHeight: 500,

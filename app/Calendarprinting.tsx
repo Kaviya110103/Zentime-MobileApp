@@ -2,6 +2,7 @@ import BottomNavBar from '../components/BottomNavBar';
 import { EmployeeContext } from "../context/EmployeeContext";
 import { Feather } from '@expo/vector-icons';
 import axios from 'axios';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -9,6 +10,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { AppText as Text } from '../components/AppTypography';
 import { buildApiUrl, withClientId } from '../lib/api';
+import { useAppTheme } from '../context/AppThemeContext';
 
 interface AttendanceReport {
   firstName: string;
@@ -24,8 +26,17 @@ interface AttendanceReport {
   imageOut?: string;
 }
 
+type AttendanceSummary = {
+  total: number;
+  present: number;
+  absent: number;
+  weekOff: number;
+  holiday: number;
+};
+
 const EmployeeAttendanceReport = () => {
   const { employee } = useContext(EmployeeContext);
+  const { isDark, colors } = useAppTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [companyCode, setCompanyCode] = useState('');
   const [employeeId, setEmployeeId] = useState(0);
@@ -38,6 +49,13 @@ const EmployeeAttendanceReport = () => {
   const [printData, setPrintData] = useState<AttendanceReport[]>([]);
   const [client, setClient] = useState<any>(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [summary, setSummary] = useState<AttendanceSummary>({
+    total: 0,
+    present: 0,
+    absent: 0,
+    weekOff: 0,
+    holiday: 0,
+  });
 
   const [employeeDetails, setEmployeeDetails] = useState({
     firstName: '',
@@ -59,7 +77,7 @@ const EmployeeAttendanceReport = () => {
 
   useEffect(() => {
     const fetchClient = async () => {
-      if (!clientId || !companyCode) return;
+      if (!clientId) return;
       
       try {
         const res = await axios.get(buildApiUrl(`/api/clients/${clientId}`));
@@ -74,11 +92,11 @@ const EmployeeAttendanceReport = () => {
     };
 
     fetchClient();
-  }, [clientId, companyCode]);
+  }, [clientId, initialLoadComplete]);
 
   useEffect(() => {
     const fetchEmployeeDetails = async () => {
-      if (!employeeId || !companyCode) return;
+      if (!employeeId) return;
       
       try {
         const res = await axios.get(buildApiUrl(`/api/employees/${employeeId}`, { clientId }));
@@ -93,35 +111,25 @@ const EmployeeAttendanceReport = () => {
       }
     };
     
-    if (employeeId && companyCode) {
+    if (employeeId) {
       fetchEmployeeDetails();
     }
-  }, [employeeId, companyCode]);
+  }, [employeeId, clientId]);
 
   useEffect(() => {
-    if (employeeId && companyCode) {
+    if (employeeId) {
       fetchReportData();
     }
-  }, [currentDate, employeeId, companyCode]);
+  }, [currentDate, employeeId, clientId]);
 
   const fetchReportData = async () => {
-    if (!employeeId || !companyCode) return;
+    if (!employeeId) return;
     
     setLoading(true);
     try {
       let month = currentDate.getMonth() + 1;
       let year = currentDate.getFullYear();
       
-      const response = await axios.get(
-        buildApiUrl(`/api/attendance/employee/${employeeId}`),
-        { 
-          params: withClientId({ month, year }, clientId),
-          timeout: 10000 // 10 second timeout
-        }
-      );
-
-      console.log('API Response:', response.data); // Debug log
-
       const normalizeDateLabel = (raw?: string | null) => {
         const value = String(raw || '').trim();
         if (!value) return 'N/A';
@@ -133,22 +141,37 @@ const EmployeeAttendanceReport = () => {
         return value;
       };
 
-      let sourceData = Array.isArray(response.data) ? response.data : [];
+      let sourceData: any[] = [];
+
+      try {
+        const response = await axios.get(
+          buildApiUrl(`/api/attendance/employee/${employeeId}`),
+          {
+            params: withClientId({ month, year }, clientId),
+            timeout: 6000,
+          }
+        );
+        sourceData = Array.isArray(response.data) ? response.data : [];
+      } catch (primaryError: any) {
+        console.warn('Employee attendance endpoint failed:', primaryError?.message);
+      }
+
       if (sourceData.length === 0) {
         const monthSliceRes = await axios.get(
           buildApiUrl(`/api/attendance/monthly/${employeeId}/${year}/${String(month).padStart(2, '0')}`),
           {
             params: withClientId({}, clientId),
-            timeout: 10000,
+            timeout: 6000,
           }
         );
         sourceData = Array.isArray(monthSliceRes.data) ? monthSliceRes.data : [];
       }
 
+      sourceData = sourceData
+        .filter((item: any) => isSameReportMonth(item?.date, month, year))
+        .sort((a: any, b: any) => compareReportDates(a?.date, b?.date));
+
       const formattedData = sourceData.map((item: any) => {
-        // Debug the missedTimes field
-        console.log('Item missedTimes:', item.missedTimes, 'Type:', typeof item.missedTimes);
-        
         return {
           empId: employeeId.toString(),
           firstName: item.firstName || employeeDetails.firstName || 'N/A',
@@ -156,7 +179,7 @@ const EmployeeAttendanceReport = () => {
           date: normalizeDateLabel(item.date),
           timeIn: item.timeIn,
           timeOut: item.timeOut,
-          workingHours: calculateWorkingHours(item.timeIn, item.timeOut),
+          workingHours: formatWorkedHours(item.workedHours) || calculateWorkingHours(item.timeIn, item.timeOut),
           // Handle missedTimes - check various possible formats
           missedTimes: item.missedTimes !== null && item.missedTimes !== undefined 
             ? formatMinutesToHours(item.missedTimes)
@@ -169,9 +192,13 @@ const EmployeeAttendanceReport = () => {
 
       setReportData(formattedData);
       setPrintData(formattedData);
+      setSummary(buildAttendanceSummary(formattedData));
       setInitialLoadComplete(true);
     } catch (error: any) {
       console.error('Error fetching report data:', error);
+      setReportData([]);
+      setPrintData([]);
+      setSummary({ total: 0, present: 0, absent: 0, weekOff: 0, holiday: 0 });
       
       // Check if it's a network error
       if (error.code === 'ECONNABORTED' || error.message.includes('Network Error')) {
@@ -187,9 +214,45 @@ const EmployeeAttendanceReport = () => {
     }
   };
 
+  const getStatusBucket = (record: AttendanceReport) => {
+    const normalized = String(record.attendanceStatus || '').toLowerCase().replace(/\s+/g, '');
+    if (normalized.includes('present')) return 'Present';
+    if (normalized.includes('absent')) return 'Absent';
+    if (normalized.includes('weekoff') || normalized.includes('weekendoff')) return 'Week Off';
+    if (normalized.includes('holiday')) return 'Holiday';
+    return 'Other';
+  };
+
+  const buildAttendanceSummary = (items: AttendanceReport[]): AttendanceSummary => ({
+    total: items.length,
+    present: items.filter((item) => getStatusBucket(item) === 'Present').length,
+    absent: items.filter((item) => getStatusBucket(item) === 'Absent').length,
+    weekOff: items.filter((item) => getStatusBucket(item) === 'Week Off').length,
+    holiday: items.filter((item) => getStatusBucket(item) === 'Holiday').length,
+  });
+
+  const parseReportDate = (raw?: string | null): Date | null => {
+    const value = String(raw || '').trim();
+    if (!value) return null;
+    const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+    if (dmy) return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (ymd) return new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+    return null;
+  };
+
+  const isSameReportMonth = (raw: any, month: number, year: number) => {
+    const parsed = parseReportDate(raw);
+    return !!parsed && parsed.getMonth() + 1 === month && parsed.getFullYear() === year;
+  };
+
+  const compareReportDates = (left: any, right: any) => {
+    const leftDate = parseReportDate(left)?.getTime() ?? 0;
+    const rightDate = parseReportDate(right)?.getTime() ?? 0;
+    return leftDate - rightDate;
+  };
+
   const formatMinutesToHours = (minutes: any) => {
-    console.log('formatMinutesToHours input:', minutes, 'Type:', typeof minutes);
-    
     // Handle null/undefined
     if (minutes === null || minutes === undefined || minutes === '') {
       return '0h 0m';
@@ -263,6 +326,17 @@ const EmployeeAttendanceReport = () => {
     return currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
   };
 
+  const getPDFFileName = () =>
+    `Attendance_Report_${employeeId}_${getPeriodString().replace(/\s+/g, '_')}.pdf`;
+
+  const formatWorkedHours = (hours: any) => {
+    const numeric = Number(hours);
+    if (!Number.isFinite(numeric) || numeric <= 0) return '';
+    const wholeHours = Math.floor(numeric);
+    const minutes = Math.round((numeric - wholeHours) * 60);
+    return `${wholeHours}h ${minutes}m`;
+  };
+
   const shiftMonth = (delta: number) => {
     setCurrentDate((prev) => {
       const next = new Date(prev);
@@ -273,10 +347,6 @@ const EmployeeAttendanceReport = () => {
   };
 
   const generatePDFHtml = () => {
-    if (!client) {
-      return '<html><body><h1>Loading client data...</h1></body></html>';
-    }
-
     const tableRows = reportData.map(item => {
       let statusColor = 'color: #FF9800;';
       if (item.attendanceStatus === 'Present') {
@@ -298,9 +368,9 @@ const EmployeeAttendanceReport = () => {
     `;
     }).join('');
 
-    const totalPresent = reportData.filter(item => item.attendanceStatus === 'Present').length;
-    const totalAbsent = reportData.filter(item => item.attendanceStatus === 'Absent').length;
-    const totalRecords = reportData.length;
+    const totalPresent = summary.present;
+    const totalAbsent = summary.absent;
+    const totalRecords = summary.total;
 
     return `
       <!DOCTYPE html>
@@ -376,25 +446,7 @@ const EmployeeAttendanceReport = () => {
               padding-top: 15px;
             }
             .summary {
-              display: flex;
-              justify-content: space-around;
               margin: 20px 0;
-              padding: 15px;
-              background-color: #f8f9fa;
-              border-radius: 8px;
-            }
-            .summary-item {
-              text-align: center;
-            }
-            .summary-number {
-              font-size: 24px;
-              font-weight: bold;
-              color: #7726B9;
-            }
-            .summary-label {
-              font-size: 12px;
-              color: #666;
-              margin-top: 5px;
             }
             .no-data {
               text-align: center;
@@ -406,7 +458,7 @@ const EmployeeAttendanceReport = () => {
         </head>
         <body>
           <div class="header">
-            <div class="company-name">${client.companyName || 'Company'}</div>
+            <div class="company-name">${client?.companyName || employee?.companyCode || 'Company'}</div>
             <div class="report-title">Monthly Attendance Report</div>
             <div class="report-period">${getPeriodString()}</div>
             <div class="employee-info">Employee ID: ${employeeId}</div>
@@ -417,24 +469,24 @@ const EmployeeAttendanceReport = () => {
           </div>
 
           <div class="summary">
-            <div class="summary-item">
-              <div class="summary-number">${totalRecords}</div>
-              <div class="summary-label">Total Days</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-number" style="color: #4CAF50;">${totalPresent}</div>
-              <div class="summary-label">Present</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-number" style="color: #F44336;">${totalAbsent}</div>
-              <div class="summary-label">Absent</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-number" style="color: #7726B9;">${
-                totalRecords > 0 ? ((totalPresent / totalRecords) * 100).toFixed(1) : 0
-              }%</div>
-              <div class="summary-label">Attendance Rate</div>
-            </div>
+            <table>
+              <tr>
+                <th>Total Days</th>
+                <th>Present</th>
+                <th>Absent</th>
+                <th>Week Off</th>
+                <th>Holiday</th>
+                <th>Attendance Rate</th>
+              </tr>
+              <tr>
+                <td>${totalRecords}</td>
+                <td style="color: #4CAF50; font-weight: bold;">${totalPresent}</td>
+                <td style="color: #F44336; font-weight: bold;">${totalAbsent}</td>
+                <td style="color: #7C3AED; font-weight: bold;">${summary.weekOff}</td>
+                <td style="color: #1976D2; font-weight: bold;">${summary.holiday}</td>
+                <td style="color: #7726B9; font-weight: bold;">${totalRecords > 0 ? ((totalPresent / totalRecords) * 100).toFixed(1) : 0}%</td>
+              </tr>
+            </table>
           </div>
 
           <div class="table-container">
@@ -470,13 +522,16 @@ const EmployeeAttendanceReport = () => {
     `;
   };
 
-  const generateAndSharePDF = async () => {
+  const createPDFFile = async () => {
+    const htmlContent = generatePDFHtml();
+    return Print.printToFileAsync({ html: htmlContent, base64: true });
+  };
+
+  const downloadPDF = async () => {
     try {
       setPdfLoading(true);
-      const htmlContent = generatePDFHtml();
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
-      
-      const fileName = `Attendance_Report_${employeeId}_${getPeriodString().replace(' ', '_')}.pdf`;
+      const { uri, base64 } = await createPDFFile();
+      const fileName = getPDFFileName();
       
       if (Platform.OS === 'web') {
         const link = document.createElement('a');
@@ -486,17 +541,45 @@ const EmployeeAttendanceReport = () => {
         link.click();
         link.remove();
         Alert.alert('Success', 'PDF downloaded successfully!');
-      } else if (await Sharing.isAvailableAsync()) {
+        return;
+      }
+
+      if (Platform.OS === 'android') {
+        const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!permissions.granted) {
+          Alert.alert('Download cancelled', 'Please choose a folder to save the PDF.');
+          return;
+        }
+
+        const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+          permissions.directoryUri,
+          fileName,
+          'application/pdf'
+        );
+        const pdfBase64 =
+          base64 ||
+          (await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          }));
+        await FileSystem.StorageAccessFramework.writeAsStringAsync(fileUri, pdfBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        Alert.alert('Downloaded', `PDF saved as ${fileName}`);
+        return;
+      }
+
+      if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
-          dialogTitle: 'Share Attendance Report',
-          mimeType: 'application/pdf'
+          dialogTitle: 'Save Attendance Report',
+          mimeType: 'application/pdf',
+          UTI: 'com.adobe.pdf',
         });
       } else {
-        Alert.alert('Error', 'Sharing is not available on this device');
+        Alert.alert('PDF ready', `Report generated: ${uri}`);
       }
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      Alert.alert('Error', 'Failed to generate PDF report');
+    } catch (error: any) {
+      console.error('Error downloading PDF:', error);
+      Alert.alert('Error', error?.message || 'Failed to download PDF report');
     } finally {
       setPdfLoading(false);
     }
@@ -505,15 +588,15 @@ const EmployeeAttendanceReport = () => {
   // Show loading screen
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#7726B9" />
-        <Text style={styles.loadingText}>Loading employee data...</Text>
+        <Text style={[styles.loadingText, { color: colors.primary }]}>Loading employee data...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.contentWrapper}>
         <LinearGradient
           colors={['#7726B9', '#5E1D9E']}
@@ -524,28 +607,51 @@ const EmployeeAttendanceReport = () => {
           <Text style={styles.headerTitle}>Monthly Attendance Report</Text>
         </LinearGradient>
         
-        <View style={styles.printContainer}>
+        <View style={[styles.printContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.printHeader}>
             <View style={styles.periodRow}>
-              <TouchableOpacity style={styles.periodButton} onPress={() => shiftMonth(-1)}>
-                <Feather name="chevron-left" size={18} color="#7726B9" />
+              <TouchableOpacity style={[styles.periodButton, isDark && { backgroundColor: '#1f2937', borderColor: colors.border }]} onPress={() => shiftMonth(-1)}>
+                <Feather name="chevron-left" size={18} color={colors.primary} />
               </TouchableOpacity>
-              <Text style={styles.printSubtitle}>{getPeriodString()}</Text>
-              <TouchableOpacity style={styles.periodButton} onPress={() => shiftMonth(1)}>
-                <Feather name="chevron-right" size={18} color="#7726B9" />
+              <Text style={[styles.printSubtitle, { color: colors.text }]}>{getPeriodString()}</Text>
+              <TouchableOpacity style={[styles.periodButton, isDark && { backgroundColor: '#1f2937', borderColor: colors.border }]} onPress={() => shiftMonth(1)}>
+                <Feather name="chevron-right" size={18} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.employeeName}>{employeeDetails.firstName}</Text>
+            <Text style={[styles.employeeName, { color: colors.mutedText }]}>{employeeDetails.firstName}</Text>
           </View>
           
           <ScrollView style={styles.printScroll}>
+            <View style={styles.summaryGrid}>
+              <View style={[styles.summaryCard, isDark && { backgroundColor: '#1f2937', borderColor: colors.border }]}>
+                <Text style={styles.summaryValue}>{summary.total}</Text>
+                <Text style={styles.summaryLabel}>Total Records</Text>
+              </View>
+              <View style={[styles.summaryCard, isDark && { backgroundColor: '#1f2937', borderColor: colors.border }]}>
+                <Text style={[styles.summaryValue, styles.presentValue]}>{summary.present}</Text>
+                <Text style={styles.summaryLabel}>Present</Text>
+              </View>
+              <View style={[styles.summaryCard, isDark && { backgroundColor: '#1f2937', borderColor: colors.border }]}>
+                <Text style={[styles.summaryValue, styles.absentValue]}>{summary.absent}</Text>
+                <Text style={styles.summaryLabel}>Absent</Text>
+              </View>
+              <View style={[styles.summaryCard, isDark && { backgroundColor: '#1f2937', borderColor: colors.border }]}>
+                <Text style={[styles.summaryValue, styles.weekOffValue]}>{summary.weekOff}</Text>
+                <Text style={styles.summaryLabel}>Week Off</Text>
+              </View>
+              <View style={[styles.summaryCard, isDark && { backgroundColor: '#1f2937', borderColor: colors.border }]}>
+                <Text style={[styles.summaryValue, styles.holidayValue]}>{summary.holiday}</Text>
+                <Text style={styles.summaryLabel}>Holiday</Text>
+              </View>
+            </View>
+
             {reportData.length === 0 ? (
               <View style={styles.noDataContainer}>
-                <Text style={styles.noDataText}>No attendance records found for {getPeriodString()}</Text>
+                <Text style={[styles.noDataText, { color: colors.mutedText }]}>No attendance records found for {getPeriodString()}</Text>
               </View>
             ) : (
               <View style={styles.printTable}>
-                <View style={styles.printTableHeader}>
+                <View style={[styles.printTableHeader, isDark && { backgroundColor: '#1f2937', borderColor: colors.border }]}>
                   <Text style={styles.printHeaderCell}>Date</Text>
                   <Text style={styles.printHeaderCell}>Time In</Text>
                   <Text style={styles.printHeaderCell}>Time Out</Text>
@@ -562,12 +668,12 @@ const EmployeeAttendanceReport = () => {
                     statusStyle = styles.printAbsentStatus;
                   }
                   return (
-                  <View key={item.date} style={styles.printTableRow}>
-                    <Text style={styles.printCell}>{item.date}</Text>
-                    <Text style={styles.printCell}>{formatTime(item.timeIn)}</Text>
-                    <Text style={styles.printCell}>{formatTime(item.timeOut)}</Text>
-                    <Text style={styles.printCell}>{item.workingHours}</Text>
-                    <Text style={styles.printCell}>{item.missedTimes}</Text>
+                  <View key={item.date} style={[styles.printTableRow, { borderColor: colors.border }]}>
+                    <Text style={[styles.printCell, { color: colors.text }]}>{item.date}</Text>
+                    <Text style={[styles.printCell, { color: colors.text }]}>{formatTime(item.timeIn)}</Text>
+                    <Text style={[styles.printCell, { color: colors.text }]}>{formatTime(item.timeOut)}</Text>
+                    <Text style={[styles.printCell, { color: colors.text }]}>{item.workingHours}</Text>
+                    <Text style={[styles.printCell, { color: colors.text }]}>{item.missedTimes}</Text>
                     <Text style={[styles.printCell, statusStyle]}>
                       {item.attendanceStatus}
                     </Text>
@@ -579,13 +685,13 @@ const EmployeeAttendanceReport = () => {
           </ScrollView>
           
           <View style={styles.printFooter}>
-            <Text style={styles.printFooterText}>Generated on {new Date().toLocaleDateString()}</Text>
+            <Text style={[styles.printFooterText, { color: colors.mutedText }]}>Generated on {new Date().toLocaleDateString()}</Text>
           </View>
           
           <View style={styles.modalButtons}>
             <TouchableOpacity 
               style={styles.downloadButton}
-              onPress={generateAndSharePDF}
+              onPress={downloadPDF}
               disabled={pdfLoading || reportData.length === 0}
             >
               {pdfLoading ? (
@@ -604,7 +710,7 @@ const EmployeeAttendanceReport = () => {
       {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#7726B9" />
-          <Text style={styles.loadingText}>Loading attendance data...</Text>
+          <Text style={[styles.loadingText, { color: colors.primary }]}>Loading attendance data...</Text>
         </View>
       )}
       
@@ -708,6 +814,48 @@ const styles = StyleSheet.create({
   },
   printScroll: {
     flex: 1,
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  summaryCard: {
+    flexGrow: 1,
+    flexBasis: '30%',
+    minWidth: 92,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: '#F8F5FF',
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+    alignItems: 'center',
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#351153',
+  },
+  summaryLabel: {
+    marginTop: 3,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  presentValue: {
+    color: '#16A34A',
+  },
+  absentValue: {
+    color: '#DC2626',
+  },
+  weekOffValue: {
+    color: '#7C3AED',
+  },
+  holidayValue: {
+    color: '#1976D2',
   },
   printTable: {
     marginBottom: 20,

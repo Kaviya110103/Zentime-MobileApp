@@ -1,8 +1,20 @@
+import { Platform } from "react-native";
+
 type QueryValue = string | number | boolean | null | undefined;
 
-const DEFAULT_BASE_URL = "https://test2.zentime.co.in";
+const DEFAULT_BASE_URL = "https://iie.zentime.co.in";
+const IS_DEV_BUILD = typeof __DEV__ !== "undefined" && __DEV__;
+const ALLOW_LOCAL_API = IS_DEV_BUILD && process.env.EXPO_PUBLIC_ALLOW_LOCAL_API === "true";
+
+function isLocalNetworkBaseUrl(baseUrl: string): boolean {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)(:\d+)?/i.test(baseUrl);
+}
 
 function inferDefaultBaseUrl(): string {
+  if (Platform.OS !== "web") {
+    return DEFAULT_BASE_URL;
+  }
+
   if (typeof window !== "undefined" && window.location?.hostname) {
     const host = window.location.hostname.trim();
     if (host.length > 0) {
@@ -17,7 +29,11 @@ function normalizeBaseUrl(rawBaseUrl: string): string {
   return rawBaseUrl.trim().replace(/\s+/g, "").replace(/\/+$/, "");
 }
 
-export const API_BASE_URL = normalizeBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL || inferDefaultBaseUrl());
+const configuredBaseUrl = normalizeBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL || inferDefaultBaseUrl());
+export const API_BASE_URL =
+  Platform.OS !== "web" && !ALLOW_LOCAL_API && isLocalNetworkBaseUrl(configuredBaseUrl)
+    ? DEFAULT_BASE_URL
+    : configuredBaseUrl;
 
 export function resolveAssetUrl(rawUrl?: string | null): string {
   const value = (rawUrl || "").trim();

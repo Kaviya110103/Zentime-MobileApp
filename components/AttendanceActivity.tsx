@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AppText as Text } from './AppTypography';
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ type AttendanceData = {
   timeIn: string | null;
   timeOut: string | null;
   attendanceStatus?: string;
+  workedHours?: number | string | null;
 };
 
 type EmployeeInfoProps = {
@@ -57,8 +58,8 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
         const today = new Date();
         const promises: Promise<AttendanceData | null>[] = [];
 
-        // Fetch last 7 days
-        for (let i = 0; i < 7; i++) {
+        // Fetch today through the previous 4 days.
+        for (let i = 0; i < 5; i++) {
           const d = new Date(today);
           d.setDate(today.getDate() - i);
           const formatted = formatDateForApi(d); // dd/MM/yyyy
@@ -96,8 +97,6 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
           return dateB.getTime() - dateA.getTime();
         });
 
-        console.log('Fetched attendances:', validResults);
-        
         setAttendances(validResults);
       } catch (err: any) {
         console.error('Error fetching attendance:', err);
@@ -141,8 +140,6 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     return 'no-data';
   };
 
-  console.log('Component state:', { loading, error, attendancesCount: attendances.length });
-
   if (loading) {
     return (
       <View style={styles.centeredContainer}>
@@ -161,12 +158,12 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     );
   }
 
-  // Generate last 7 days even if no data
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
+  // Generate today and the previous 4 days, newest first.
+  const last5Days = Array.from({ length: 5 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
     return formatDateForApi(d);
-  }).reverse();
+  });
 
   // Create a map of attendance data by date for easy lookup
   const attendanceMap = new Map<string, AttendanceData>();
@@ -175,19 +172,8 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Attendance Activity</Text>
-      
-      {attendances.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Feather name="calendar" size={48} color="#ccc" />
-          <Text style={styles.emptyText}>No attendance records found</Text>
-          <Text style={styles.emptySubtext}>Showing last 7 days</Text>
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={true}
-        >
+
+      <View style={styles.table}>
           <View style={styles.headerRow}>
             <View style={[styles.headerCell, styles.dayCell]}>
               <Text style={styles.headerText}>Day</Text>
@@ -206,7 +192,7 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
             </View>
           </View>
 
-          {last7Days.map((date, index) => {
+          {last5Days.map((date) => {
             const attendance = attendanceMap.get(date) || {
               date,
               timeIn: null,
@@ -216,7 +202,8 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
             
             const status = getAttendanceStatus(attendance);
             const dayName = getShortDayName(date);
-            const formattedDate = date.split('/')[0];
+            const [day, month] = date.split('/');
+            const formattedDate = `${day}/${month}`;
 
             const getStatusConfig = (status: string) => {
               switch (status) {
@@ -249,7 +236,12 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
 
             // Calculate total hours
             let totalHours = '--:--';
-            if (attendance.timeIn && attendance.timeOut) {
+            const workedHoursNumber = Number(attendance.workedHours);
+            if (Number.isFinite(workedHoursNumber) && workedHoursNumber > 0) {
+              const hours = Math.floor(workedHoursNumber);
+              const minutes = Math.round((workedHoursNumber - hours) * 60);
+              totalHours = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            } else if (attendance.timeIn && attendance.timeOut) {
               try {
                 const diffMs = new Date(attendance.timeOut).getTime() - new Date(attendance.timeIn).getTime();
                 const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
@@ -282,7 +274,6 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
                 {/* Status Column */}
                 <View style={[styles.dataCell, styles.statusCell]}>
                   <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
-                    <Feather name={statusConfig.icon} size={14} color={statusConfig.color} />
                     <Text style={[styles.statusText, { color: statusConfig.color }]}>
                       {statusConfig.label}
                     </Text>
@@ -292,12 +283,6 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
                 {/* Clock-In Column */}
                 <View style={[styles.dataCell, styles.timeCell]}>
                   <View style={styles.timeContainer}>
-                    <Feather 
-                      name="log-in" 
-                      size={14} 
-                      color={attendance.timeIn ? "#28a745" : "#6c757d"} 
-                      style={styles.timeIcon} 
-                    />
                     <Text style={[
                       styles.timeText, 
                       attendance.timeIn ? styles.timePresent : styles.timeAbsent
@@ -310,12 +295,6 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
                 {/* Clock-Out Column */}
                 <View style={[styles.dataCell, styles.timeCell]}>
                   <View style={styles.timeContainer}>
-                    <Feather 
-                      name="log-out" 
-                      size={14} 
-                      color={attendance.timeOut ? "#dc3545" : "#6c757d"} 
-                      style={styles.timeIcon} 
-                    />
                     <Text style={[
                       styles.timeText, 
                       attendance.timeOut ? styles.timePresent : styles.timeAbsent
@@ -334,8 +313,7 @@ const AttendanceActivity: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
               </View>
             );
           })}
-        </ScrollView>
-      )}
+      </View>
     </View>
   );
 };
@@ -344,10 +322,9 @@ export default AttendanceActivity;
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: 'white',
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     marginHorizontal: 16,
     marginVertical: 8,
     shadowColor: '#000',
@@ -355,8 +332,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    minHeight: 320,
-    maxHeight: 400,
+    minHeight: 430,
   },
   centeredContainer: {
     flex: 1,
@@ -397,31 +373,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 10,
+  table: {
+    width: '100%',
   },
   heading: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 16,
+    marginBottom: 10,
     color: '#333',
   },
   headerRow: {
     flexDirection: 'row',
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderBottomWidth: 2,
     borderBottomColor: '#e0e0e0',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   headerCell: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
     color: '#444',
     textAlign: 'center',
@@ -429,7 +402,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    minHeight: 62,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#f5f5f5',
   },
@@ -438,16 +412,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dayCell: {
-    flex: 0.8,
+    width: '16%',
   },
   statusCell: {
-    flex: 1.2,
+    width: '25%',
   },
   timeCell: {
-    flex: 1,
+    width: '18%',
   },
   totalCell: {
-    flex: 0.9,
+    width: '23%',
   },
   dayName: {
     fontSize: 11,
@@ -456,7 +430,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dateNumber: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: 'bold',
     color: '#333',
     marginTop: 2,
@@ -466,27 +440,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 5,
     borderRadius: 12,
-    minWidth: 70,
+    minWidth: 66,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
-    marginLeft: 4,
   },
   timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  timeIcon: {
-    marginRight: 4,
-  },
   timeText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
-    minWidth: 45,
+    minWidth: 36,
     textAlign: 'center',
   },
   timePresent: {
@@ -496,12 +466,12 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   totalText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     textAlign: 'center',
-    minWidth: 60,
+    minWidth: 54,
     paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 5,
     borderRadius: 8,
   },
   totalPresent: {

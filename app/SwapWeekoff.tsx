@@ -15,9 +15,11 @@ import { AppText as Text, AppTextInput as TextInput } from "../components/AppTyp
 import BottomNavBar from "../components/BottomNavBar";
 import { EmployeeContext } from "../context/EmployeeContext";
 import { buildApiUrl, withClientId } from "../lib/api";
+import { useAppTheme } from "../context/AppThemeContext";
 
 const SwapWeekoff = () => {
   const { employee } = useContext(EmployeeContext);
+  const { isDark, colors } = useAppTheme();
   const employeeId = employee?.id;
   const actualWeekoff = String(employee?.weekOff || "").trim() || "Not Set";
 
@@ -82,7 +84,7 @@ const SwapWeekoff = () => {
   };
 
   return (
-    <View style={styles.mainContainer}>
+    <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
       <LinearGradient
         colors={["#7726B9", "#5E1D9E"]}
         style={styles.header}
@@ -94,19 +96,25 @@ const SwapWeekoff = () => {
 
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.inputRow}>
-          <MaterialCommunityIcons name="calendar-week" size={28} color="purple" />
+          <MaterialCommunityIcons name="calendar-week" size={28} color={colors.primary} />
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Actual Weekoff Day</Text>
-            <View style={[styles.inputField, styles.disabledField]}>
-              <Text style={[styles.inputText, styles.selectedText]}>{actualWeekoff}</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Actual Weekoff Day</Text>
+            <View
+              style={[
+                styles.inputField,
+                styles.disabledField,
+                { backgroundColor: isDark ? "#1f2937" : "#F3F4F6", borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.inputText, styles.selectedText, { color: colors.text }]}>{actualWeekoff}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.inputRow}>
-          <Feather name="calendar" size={28} color="purple" />
+          <Feather name="calendar" size={28} color={colors.primary} />
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>
+            <Text style={[styles.label, { color: colors.text }]}>
               Swap Day <Text style={styles.required}>*</Text>
             </Text>
             <TouchableOpacity
@@ -133,9 +141,9 @@ const SwapWeekoff = () => {
                 }
                 setShowDatePicker(true);
               }}
-              style={styles.inputField}
+              style={[styles.inputField, { backgroundColor: colors.surface, borderColor: colors.border }]}
             >
-              <Text style={[styles.inputText, swapDate && styles.selectedText]}>
+              <Text style={[styles.inputText, swapDate && styles.selectedText, swapDate && { color: colors.text }]}>
                 {swapDate ? formatDate(swapDate) : "Select swap weekoff date"}
               </Text>
             </TouchableOpacity>
@@ -155,17 +163,17 @@ const SwapWeekoff = () => {
         </View>
 
         <View style={styles.inputRow}>
-          <Feather name="file-text" size={28} color="purple" />
+          <Feather name="file-text" size={28} color={colors.primary} />
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>
+            <Text style={[styles.label, { color: colors.text }]}>
               Reason <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
-              style={[styles.inputField, styles.textArea]}
+              style={[styles.inputField, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
               value={reason}
               onChangeText={setReason}
               placeholder="Enter reason for swapping weekoff"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={isDark ? "#94a3b8" : "#9CA3AF"}
               multiline
               numberOfLines={4}
               textAlignVertical="top"

@@ -58,9 +58,9 @@ const LocationTest = ({
         );
         setLocations(Array.isArray(res.data) ? res.data : []);
       } catch (error) {
-        console.error('Failed to fetch geofences:', error);
+        console.warn('Branch location lookup failed:', (error as any)?.message || error);
         setLocations([]);
-        setLocationMessage('Branch locations are unavailable. GPS is still being checked.');
+        setLocationMessage('Branch locations are unavailable. Attendance location cannot be verified now.');
       }
     };
 

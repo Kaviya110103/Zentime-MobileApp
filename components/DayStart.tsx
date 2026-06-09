@@ -8,6 +8,7 @@ import LocationTest from '../app/LocationTest';
 import { isToday, parse } from "date-fns";
 import { EmployeeContext } from "../context/EmployeeContext";
 import { buildApiUrl, withClientId } from "../lib/api";
+import { useAppTheme } from "../context/AppThemeContext";
 
 interface StartDayProps {
   employeeId: number;
@@ -33,6 +34,7 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
   const [showLocationRequestModal, setShowLocationRequestModal] = useState(false);
   const [locationRequestReason, setLocationRequestReason] = useState('');
   const { employee } = useContext(EmployeeContext);
+  const { isDark, colors } = useAppTheme();
   const companyCode = employee?.companyCode;
   const clientId = employee?.clientId;
 
@@ -73,8 +75,18 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
 
   const isAbsentToday = attendanceStatus === 'Absent';
 
+  const closeLocationModal = () => {
+    setShowLocationModal(false);
+    setShowLocationRequestModal(false);
+    setLocationRequestReason('');
+  };
+
   const handleStartDayFlow = () => {
     if (isAbsentToday || dayStarted) return;
+    setLocationStatus('Unknown');
+    setCanStartDay(false);
+    setShowLocationRequestModal(false);
+    setLocationRequestReason('');
     setShowLocationModal(true);
   };
 
@@ -168,11 +180,14 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
   const handleLocationStatus = (status: 'Active' | 'Inactive' | 'Unknown') => {
     setLocationStatus(status);
     setCanStartDay(status === 'Active');
-    if (status === 'Inactive') {
-      setShowLocationRequestModal(true);
-    } else if (status === 'Active') {
+    if (status === 'Active') {
       setShowLocationRequestModal(false);
     }
+  };
+
+  const openLocationRequestModal = () => {
+    if (locationStatus !== 'Inactive') return;
+    setShowLocationRequestModal(true);
   };
 
   const submitLocationRequest = async () => {
@@ -216,7 +231,7 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
   if (initialLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#351153" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -231,22 +246,24 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
         <TouchableOpacity
           style={[
             styles.touchIconBox,
+            { backgroundColor: colors.surface, borderColor: colors.border },
             (isAbsentToday || loading) && styles.disabledContainer
           ]}
           onPress={handleStartDayFlow}
           disabled={loading || isAbsentToday}
         >
           {loading ? (
-            <ActivityIndicator size="small" color="#351153" />
+            <ActivityIndicator size="small" color={colors.primary} />
           ) : (
             <>
               <MaterialIcons 
                 name={isAbsentToday ? "hotel" : "wb-sunny"} 
                 size={38} 
-                color={isAbsentToday ? "#9CA3AF" : "#351153"} 
+                color={isAbsentToday ? "#9CA3AF" : colors.primary}
               />
               <Text style={[
                 styles.dayStartText,
+                { color: colors.primary },
                 isAbsentToday && styles.disabledText
               ]}>
                 {isAbsentToday ? 'Take Rest' : 'Start Day'}
@@ -257,17 +274,17 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
         
         {onCancel && (
           <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={[styles.cancelText, { color: colors.mutedText }]}>Cancel</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {/* Start Day Location Modal */}
-      <Modal visible={showLocationModal} animationType="slide">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowLocationModal(false)}>
-              <MaterialIcons name="close" size={24} color="#6B7280" />
+      <Modal visible={showLocationModal} animationType="slide" onRequestClose={closeLocationModal}>
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={closeLocationModal}>
+              <MaterialIcons name="close" size={24} color={colors.mutedText} />
             </TouchableOpacity>
           </View>
           
@@ -283,7 +300,7 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
           <View
             style={[
               styles.modalFooter,
-              { paddingBottom: Math.max(insets.bottom, 12) + 10 },
+              { paddingBottom: Math.max(insets.bottom, 12) + 10, borderTopColor: colors.border },
             ]}
           >
             <TouchableOpacity
@@ -298,27 +315,37 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
               )}
             </TouchableOpacity>
             {locationStatus === 'Inactive' && (
-              <Text style={styles.inactiveHint}>
-                Status is Inactive. Submit a location request to continue.
-              </Text>
+              <>
+                <TouchableOpacity
+                  style={[styles.locationRequestButton, loading && styles.disabledButton]}
+                  onPress={openLocationRequestModal}
+                  disabled={loading}
+                >
+                  <Text style={styles.buttonText}>Submit Location Request</Text>
+                </TouchableOpacity>
+                <Text style={styles.inactiveHint}>
+                  Status is Inactive. Submit a location request to continue.
+                </Text>
+              </>
             )}
           </View>
         </SafeAreaView>
       </Modal>
 
       {/* Location Request Modal for Inactive status */}
-      <Modal visible={showLocationRequestModal} animationType="slide" transparent>
+      <Modal visible={showLocationRequestModal} animationType="slide" transparent onRequestClose={() => setShowLocationRequestModal(false)}>
         <View style={styles.overlayContainer}>
-          <View style={styles.requestModalCard}>
-            <Text style={styles.modalTitle}>Location Request</Text>
-            <Text style={styles.modalSubtitle}>
+          <View style={[styles.requestModalCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Location Request</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.mutedText }]}>
               You are outside assigned branch location. Submit reason to mark time-in and notify admin.
             </Text>
-            <Text style={styles.locationPreview}>
+            <Text style={[styles.locationPreview, { color: colors.text }]}>
               GPS: {currentCoords ? `${currentCoords.latitude.toFixed(6)}, ${currentCoords.longitude.toFixed(6)}` : 'Detecting...'}
             </Text>
             <TextInput
-              style={styles.reasonInput}
+              style={[styles.reasonInput, { backgroundColor: isDark ? "#0f172a" : "#FFFFFF", borderColor: colors.border, color: colors.text }]}
+              placeholderTextColor={isDark ? "#94a3b8" : "#9CA3AF"}
               multiline
               numberOfLines={4}
               placeholder="Reason for marking attendance from different location"
@@ -329,7 +356,10 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
             <View style={styles.requestActions}>
               <TouchableOpacity
                 style={[styles.cancelRequestButton]}
-                onPress={() => setShowLocationRequestModal(false)}
+                onPress={() => {
+                  setShowLocationRequestModal(false);
+                  setLocationRequestReason('');
+                }}
                 disabled={loading}
               >
                 <Text style={styles.cancelRequestButtonText}>Cancel</Text>
@@ -348,25 +378,26 @@ export default function StartDayComponent({ employeeId, onDone, onCancel }: Star
 
       {/* Timeout Reason Modal */}
       <Modal visible={showTimeoutReasonModal} animationType="slide">
-        <SafeAreaView style={styles.modalContainer}>
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <ScrollView contentContainerStyle={styles.modalScroll}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={() => {
                 setShowTimeoutReasonModal(false);
                 setPendingLocation(null);
               }}>
-                <MaterialIcons name="close" size={24} color="#6B7280" />
+              <MaterialIcons name="close" size={24} color={colors.mutedText} />
               </TouchableOpacity>
             </View>
             
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Timeout Reason Required</Text>
-              <Text style={styles.modalSubtitle}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Timeout Reason Required</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.mutedText }]}>
                 Your previous work session timed out. Please provide a reason.
               </Text>
               
               <TextInput
-                style={styles.reasonInput}
+                style={[styles.reasonInput, { backgroundColor: isDark ? "#0f172a" : "#FFFFFF", borderColor: colors.border, color: colors.text }]}
+                placeholderTextColor={isDark ? "#94a3b8" : "#9CA3AF"}
                 multiline
                 numberOfLines={4}
                 placeholder="Enter reason..."
@@ -498,6 +529,14 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#9CA3AF',
+  },
+  locationRequestButton: {
+    backgroundColor: '#7C3AED',
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
   },
   buttonText: {
     color: 'white',

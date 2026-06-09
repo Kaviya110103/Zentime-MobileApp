@@ -24,6 +24,7 @@ import { PaperProvider } from 'react-native-paper';
 import { darkPaperTheme, lightPaperTheme } from '../lib/paperTheme';
 import { AppThemeProvider, useAppTheme } from '../context/AppThemeContext';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 
 const NotificationRegistrar = () => {
   const expoPushToken = useNotificationSetup();
@@ -80,6 +81,12 @@ function LayoutContent() {
     ...Entypo.font,
   });
 
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(colors.background).catch((err) => {
+      console.warn('Failed to apply system background color:', err);
+    });
+  }, [colors.background]);
+
   if (!fontsLoaded || !themeReady) {
     return null;
   }
@@ -88,7 +95,7 @@ function LayoutContent() {
 
   return (
     <PaperProvider theme={paperTheme}>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background} />
       <View style={[styles.appRoot, { backgroundColor: colors.background }]}>
         <NotificationRegistrar />
         <Stack
@@ -120,6 +127,7 @@ function LayoutContent() {
           <Stack.Screen name="LeavePermission" options={{ headerShown: false }} />
           <Stack.Screen name="AllAnnouncements" options={{ headerShown: false }} />
           <Stack.Screen name="EmployeeCalendar" options={{ headerShown: false }} />
+          <Stack.Screen name="EmployeeSupportRequest" options={{ headerShown: false }} />
           <Stack.Screen name="SwapWeekoff" options={{ headerShown: false }} />
           <Stack.Screen name="EmployeeLeavePermission" options={{ headerShown: false }} />
           <Stack.Screen name="LocationTest" options={{ headerShown: false }} />

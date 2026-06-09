@@ -249,13 +249,16 @@
 import { Feather } from '@expo/vector-icons';
 import axios from 'axios';
 import { useRouter } from 'expo-router';
-import React, { ReactNode, useContext, useEffect, useState } from 'react';
+import React, { ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
     Image,
+    Modal,
     Pressable,
     StyleSheet,
+    TouchableOpacity,
     View,
 } from 'react-native';
 import { AppText as Text } from './AppTypography';
@@ -282,8 +285,10 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
   const [formattedDate, setFormattedDate] = useState<string>('');
   const [attendanceStatus, setAttendanceStatus] = useState<string>('');
   const [showNotification, setShowNotification] = useState<boolean>(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const drawerTranslateX = useRef(new Animated.Value(-330)).current;
   const router = useRouter();
-  const { employee } = useContext(EmployeeContext);
+  const { employee, logout } = useContext(EmployeeContext);
   const companyCode = employee?.companyCode;
   const clientId = employee?.clientId;
   useEffect(() => {
@@ -396,6 +401,43 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     }
   };
 
+  const closeMenu = () => setMenuVisible(false);
+
+  useEffect(() => {
+    if (menuVisible) {
+      drawerTranslateX.setValue(-330);
+      Animated.timing(drawerTranslateX, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [drawerTranslateX, menuVisible]);
+
+  const navigateFromMenu = (
+    path:
+      | '/EmployeeProfile'
+      | '/Calendarprinting'
+      | '/EmployeeCalendar'
+      | '/LeavePermission'
+      | '/EmployeePermission'
+      | '/SwapWeekoff'
+      | '/EmployeeSupportRequest'
+  ) => {
+    closeMenu();
+    if ((path === '/LeavePermission' || path === '/EmployeePermission') && employeeId) {
+      router.push({ pathname: path, params: { employeeId: String(employeeId) } });
+      return;
+    }
+    router.push(path);
+  };
+
+  const handleLogout = async () => {
+    closeMenu();
+    await logout();
+    router.replace('/EmployeeLogin');
+  };
+
   if (loading) return <ActivityIndicator size="large" color="blue" />;
   if (!employees)
     return <Text style={styles.noData}>No employee data found.</Text>;
@@ -405,15 +447,28 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
     : require('../assets/images/empimage.jpg');
 
   return (
-    <Pressable onPress={() => router.push('/EmployeeProfile')}>
+    <>
       <View style={styles.employeeContainer}>
         <View style={styles.employeeInfo}>
-          <Image source={profileImageSource} style={styles.profileImage} />
+          <Pressable
+            style={styles.menuButton}
+            onPress={(event) => {
+              event.stopPropagation();
+              setMenuVisible(true);
+            }}
+          >
+            <Feather name="menu" size={24} color="white" />
+          </Pressable>
           <View style={styles.employeeText}>
-            <Text style={styles.employeeName}>{employees.username}</Text>
+            <Text style={styles.employeeName}>Hello {employees.username}</Text>
             <Text style={styles.employeeTitle}>{employees.position}</Text>
           </View>
-          <Pressable onPress={handleBellPress}>
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              handleBellPress();
+            }}
+          >
             <View style={styles.bellWrapper}>
               <Feather name="bell" size={24} color="white" />
               {showNotification && (
@@ -428,7 +483,74 @@ const EmployeeInfo: React.FC<EmployeeInfoProps> = ({ employeeId }) => {
           <Text style={styles.date}>{currentDate}</Text>
         </View>
       </View>
-    </Pressable>
+    <Modal
+      visible={menuVisible}
+      transparent
+      animationType="none"
+      onRequestClose={closeMenu}
+    >
+      <Pressable style={styles.menuOverlay} onPress={closeMenu}>
+        <Animated.View style={[styles.sideNav, { transform: [{ translateX: drawerTranslateX }] }]}>
+        <Pressable style={styles.sideNavInner} onPress={() => {}}>
+          <View style={styles.sideNavHeader}>
+            <TouchableOpacity
+              style={styles.sideNavAvatar}
+              onPress={() => navigateFromMenu('/EmployeeProfile')}
+            >
+              <Image source={profileImageSource} style={styles.sideNavAvatarImage} />
+            </TouchableOpacity>
+            <View style={styles.sideNavEmployee}>
+              <Text style={styles.sideNavName}>{employees.username}</Text>
+              <Text style={styles.sideNavRole}>{employees.position}</Text>
+            </View>
+            <TouchableOpacity style={styles.sideNavClose} onPress={closeMenu}>
+              <Feather name="x" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.sideNavContent}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigateFromMenu('/LeavePermission')}>
+            <View style={styles.menuIconBox}>
+              <Feather name="file-text" size={17} color="#351153" />
+            </View>
+            <Text style={styles.menuItemText}>Apply Leave</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigateFromMenu('/EmployeePermission')}>
+            <View style={styles.menuIconBox}>
+              <Feather name="clock" size={17} color="#351153" />
+            </View>
+            <Text style={styles.menuItemText}>Apply Permission</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigateFromMenu('/Calendarprinting')}>
+            <View style={styles.menuIconBox}>
+              <Feather name="bar-chart-2" size={17} color="#351153" />
+            </View>
+            <Text style={styles.menuItemText}>Monthly Report</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigateFromMenu('/SwapWeekoff')}>
+            <View style={styles.menuIconBox}>
+              <Feather name="refresh-cw" size={17} color="#351153" />
+            </View>
+            <Text style={styles.menuItemText}>Swap Weekoff</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigateFromMenu('/EmployeeSupportRequest')}>
+            <View style={styles.menuIconBox}>
+              <Feather name="message-circle" size={17} color="#351153" />
+            </View>
+            <Text style={styles.menuItemText}>Support Request</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.menuItem, styles.logoutMenuItem]} onPress={handleLogout}>
+            <View style={[styles.menuIconBox, styles.logoutIconBox]}>
+              <Feather name="log-out" size={17} color="#DC2626" />
+            </View>
+            <Text style={[styles.menuItemText, styles.logoutText]}>Logout</Text>
+          </TouchableOpacity>
+          </View>
+        </Pressable>
+        </Animated.View>
+      </Pressable>
+    </Modal>
+    </>
   );
 };
 
@@ -442,6 +564,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     padding: 10,
     borderRadius: 8,
+  },
+  menuButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   profileImage: {
     width: 50,
@@ -504,6 +635,114 @@ const styles = StyleSheet.create({
   noData: {
     textAlign: 'center',
     color: 'gray',
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.42)',
+  },
+  sideNav: {
+    width: '72%',
+    maxWidth: 310,
+    height: '100%',
+  },
+  sideNavInner: {
+    flex: 1,
+    backgroundColor: '#351153',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.16)',
+    shadowColor: '#000',
+    shadowOffset: { width: 8, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    elevation: 16,
+  },
+  sideNavHeader: {
+    paddingTop: 52,
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sideNavAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  sideNavAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  sideNavEmployee: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  sideNavName: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  sideNavRole: {
+    color: '#E9D5FF',
+    fontSize: 13,
+    marginTop: 3,
+  },
+  sideNavClose: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  sideNavContent: {
+    flex: 1,
+    backgroundColor: '#351153',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 16,
+    paddingHorizontal: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.14)',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 11,
+    borderRadius: 12,
+    marginBottom: 7,
+    backgroundColor: '#351153',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  menuIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1E7FF',
+    marginRight: 10,
+  },
+  menuItemText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  logoutMenuItem: {
+    marginTop: 10,
+    backgroundColor: '#351153',
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  logoutIconBox: {
+    backgroundColor: '#FEE2E2',
+  },
+  logoutText: {
+    color: '#DC2626',
   },
 });
 

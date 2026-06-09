@@ -8,9 +8,11 @@ import { Alert, StyleSheet, TouchableOpacity, View, ActivityIndicator, Modal } f
 import { AppText as Text } from './AppTypography';
 import { buildApiUrl, withClientId } from "../lib/api";
 import { syncAttendanceNotifications } from "../lib/employeeNotifications";
+import { useAppTheme } from "../context/AppThemeContext";
 
 const AttendanceFlow: React.FC = () => {
   const { employee } = useContext(EmployeeContext);
+  const { isDark, colors } = useAppTheme();
   const employeeId = employee?.id;
   const companyCode = employee?.companyCode;
   const [record, setRecord] = useState<Record | null>(null);
@@ -327,7 +329,7 @@ const AttendanceFlow: React.FC = () => {
   if (initialLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#351153" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -335,7 +337,7 @@ const AttendanceFlow: React.FC = () => {
   if (holidayLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#351153" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -343,7 +345,7 @@ const AttendanceFlow: React.FC = () => {
   if (leaveLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#351153" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -353,7 +355,7 @@ const AttendanceFlow: React.FC = () => {
     if (holidayToday) {
       return (
         <View style={styles.centerContainer}>
-          <TouchableOpacity style={[styles.touchIconBox, styles.disabledBox]} disabled>
+          <TouchableOpacity style={[styles.touchIconBox, { backgroundColor: colors.surface, borderColor: colors.border }, styles.disabledBox]} disabled>
             <MaterialIcons name="celebration" size={34} color="#2563EB" />
             <Text style={[styles.touchText, styles.holidayText]}>Holiday</Text>
             <Text style={styles.holidaySubText}>{holidayToday.holidayName || "Holiday"}</Text>
@@ -374,7 +376,7 @@ const AttendanceFlow: React.FC = () => {
   if (view === "closed") {
     return (
       <View style={styles.centerContainer}>
-        <TouchableOpacity style={styles.touchIconBox} disabled>
+          <TouchableOpacity style={[styles.touchIconBox, { backgroundColor: colors.surface, borderColor: colors.border }]} disabled>
           <MaterialIcons name="check-circle" size={34} color="#4CAF50" />
           <Text style={styles.touchText}>Day Closed</Text>
         </TouchableOpacity>
@@ -389,20 +391,20 @@ const AttendanceFlow: React.FC = () => {
     <>
       <View style={styles.centerContainer}>
         <TouchableOpacity
-          style={[styles.touchIconBox, isDisabled && styles.disabledBox]}
+          style={[styles.touchIconBox, { backgroundColor: colors.surface, borderColor: colors.border }, isDisabled && styles.disabledBox]}
           onPress={handleActionPress}
           disabled={isDisabled}
         >
           {loading ? (
-            <ActivityIndicator size="small" color="#351153" />
+            <ActivityIndicator size="small" color={colors.primary} />
           ) : (
             <>
               <MaterialIcons 
                 name={label === "Start Day" ? "wb-sunny" : label === "Holiday" ? "celebration" : "touch-app"} 
                 size={38} 
-                color={label === "Holiday" ? "#2563EB" : isDisabled ? "#9CA3AF" : "#351153"} 
+                color={label === "Holiday" ? "#2563EB" : isDisabled ? "#9CA3AF" : colors.primary}
               />
-              <Text style={[styles.touchText, label === "Holiday" ? styles.holidayText : isDisabled && styles.disabledText]}>
+              <Text style={[styles.touchText, { color: colors.primary }, label === "Holiday" ? styles.holidayText : isDisabled && styles.disabledText]}>
                 {label}
               </Text>
             </>
@@ -417,17 +419,17 @@ const AttendanceFlow: React.FC = () => {
         onRequestClose={() => setShowEarlyClockOutModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Early Clock-Out</Text>
-            <Text style={styles.modalMessage}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Early Clock-Out</Text>
+            <Text style={[styles.modalMessage, { color: colors.mutedText }]}>
               You can only clock out after {earlyClockOutTimeLimit}. Do you want to request permission?
             </Text>
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelModalButton]}
+                style={[styles.modalButton, styles.cancelModalButton, isDark && { backgroundColor: "#1f2937" }]}
                 onPress={() => setShowEarlyClockOutModal(false)}
               >
-                <Text style={styles.cancelModalText}>Cancel</Text>
+                <Text style={[styles.cancelModalText, { color: colors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmModalButton]}

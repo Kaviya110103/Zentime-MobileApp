@@ -67,13 +67,25 @@ export const EmployeeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     const loadSession = async () => {
       try {
-        const [storedEmployee] = await AsyncStorage.multiGet(['employee']);
+        const [storedEmployee, storedAdminClient, storedSessionType] = await AsyncStorage.multiGet([
+          'employee',
+          'adminClient',
+          'sessionType',
+        ]);
         const employeeRaw = storedEmployee?.[1];
-        await AsyncStorage.multiRemove(['adminClient', 'sessionType']);
-        if (employeeRaw) {
+        const adminRaw = storedAdminClient?.[1];
+        const storedType = storedSessionType?.[1];
+
+        if (storedType === 'admin' && adminRaw) {
+          setAdminClientState(JSON.parse(adminRaw));
+          setEmployeeState(null);
+          setSessionType('admin');
+        } else if (employeeRaw) {
           setEmployeeState(JSON.parse(employeeRaw));
+          setAdminClientState(null);
           setSessionType('employee');
         } else {
+          setEmployeeState(null);
           setAdminClientState(null);
           setSessionType(null);
         }
@@ -105,7 +117,10 @@ export const EmployeeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setAdminClient = useCallback(async (admin: AdminClient | null) => {
     if (admin) {
       await AsyncStorage.removeItem('employee');
-      await AsyncStorage.multiRemove(['adminClient', 'sessionType']);
+      await AsyncStorage.multiSet([
+        ['adminClient', JSON.stringify(admin)],
+        ['sessionType', 'admin'],
+      ]);
       setSessionType('admin');
       setEmployeeState(null);
     } else {

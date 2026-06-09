@@ -5,6 +5,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmployeeContext } from '../context/EmployeeContext';
+import { useAppTheme } from '../context/AppThemeContext';
 
 type BottomNavBarProps = {
   activeTab: string;
@@ -17,26 +18,42 @@ type BottomNavItemProps = {
   onPress: () => void;
 };
 
-const BottomNavItem: React.FC<BottomNavItemProps> = ({ icon, label, active, onPress }) => (
+const BottomNavItem: React.FC<BottomNavItemProps> = ({ icon, label, active, onPress }) => {
+  const { isDark } = useAppTheme();
+  const inactiveColor = isDark ? '#c4b5fd' : '#D9B3FF';
+
+  return (
   <TouchableOpacity style={styles.navItem} onPress={onPress}>
     {React.cloneElement(icon, {
       size: 20,
-      color: active ? 'white' : '#D9B3FF',
+      color: active ? 'white' : inactiveColor,
     })}
-    <Text style={[styles.navLabel, active && { color: 'white' }]}>{label}</Text>
+    <Text style={[styles.navLabel, { color: inactiveColor }, active && { color: 'white' }]}>{label}</Text>
   </TouchableOpacity>
-);
+  );
+};
 
 const BottomNavigation: React.FC<BottomNavBarProps> = ({ activeTab }) => {
   const router = useRouter();
   const { employee, logout } = useContext(EmployeeContext);
+  const { isDark, colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const employeeId = employee?.id;
   const bottomInset = Math.max(insets.bottom, 8);
 
   return (
-    <View style={[styles.bottomNav, { height: 56 + bottomInset, paddingBottom: bottomInset }]}> 
+    <View
+      style={[
+        styles.bottomNav,
+        {
+          height: 56 + bottomInset,
+          paddingBottom: bottomInset,
+          backgroundColor: isDark ? '#1f0f33' : '#351153',
+          borderTopColor: isDark ? colors.border : '#E2E8F0',
+        },
+      ]}
+    >
       <BottomNavItem
         icon={<FontAwesome5 name="home" />}
         label="Home"
@@ -109,7 +126,6 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     fontSize: 10,
-    color: '#A0AEC0',
     marginTop: 3,
     fontWeight: '600',
   },
